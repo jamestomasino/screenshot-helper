@@ -84,7 +84,13 @@ const scenarioData = [
 // Optionally pass a filter to only run a subset of scenarios
 const filter = process.argv[2];
 
-launchScreenshotsRunner({ scenarioData, baseURL, devices, filter });
+// To provide HTTP Basic Auth credentials to all requests
+const httpCredentials = {
+  username: 'yourUsername',
+  password: 'yourPassword',
+};
+
+launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, httpCredentials });
 ```
 
 ---

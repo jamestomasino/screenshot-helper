@@ -88,15 +88,17 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
   };
 }
 
-export async function launchScreenshotsRunner({ scenarioData, baseURL, devices, filter }, { playwrightChromium } = {}) {
+export async function launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, httpCredentials }, { playwrightChromium } = {}) {
   // Use injected chromium, or real Chromium if none provided
   const chromium = playwrightChromium || chromiumDefault;
   const browser = await chromium.launch();
   try {
     await Promise.all(
-      Object.entries(devices).map(([device, contextOptions]) =>
-        makeRunner({ browser, baseURL, scenarioData, device, contextOptions, filter })()
-      )
+      Object.entries(devices).map(([device, contextOptionsRaw]) => {
+        // Merge httpCredentials into contextOptions if specified
+        const contextOptions = httpCredentials ? { ...contextOptionsRaw, httpCredentials } : contextOptionsRaw;
+        return makeRunner({ browser, baseURL, scenarioData, device, contextOptions, filter })();
+      })
     );
   } finally {
     await browser.close();
