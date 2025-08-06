@@ -1,5 +1,6 @@
 // Refactored: accepts playwrightChromium as a parameter for dependency injection (test mocking support)
 import { chromium as chromiumDefault } from 'playwright';
+import chalk from 'chalk';
 
 async function ensureAssetsLoaded(page) {
   await page.waitForLoadState('networkidle');
@@ -40,10 +41,23 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
         case 'function':
           await page.goto(baseURL + scn.route);
           await page.waitForLoadState('networkidle');
-          if (scn.before) beforeResult = await scn.before(page, page.locator(scn.selector), device);
+          if (scn.before) {
+            try {
+              beforeResult = await scn.before(page, page.locator(scn.selector), device);
+            } catch (err) {
+              beforeResult = false;
+              console.error(chalk.redBright(`[screenshot-helper] Error in 'before' (function type) for scenario '${scn.name}' on device '${device}':`), err);
+            }
+          }
           if (beforeResult !== false) {
             await ensureAssetsLoaded(page);
-            if (scn.cleanup) await scn.cleanup(page, page.locator(scn.selector), device);
+            if (scn.cleanup) {
+              try {
+                await scn.cleanup(page, page.locator(scn.selector), device);
+              } catch (err) {
+                console.error(chalk.redBright(`[screenshot-helper] Error in 'cleanup' (function type) for scenario '${scn.name}' on device '${device}':`), err);
+              }
+            }
           }
           break;
 
@@ -53,11 +67,24 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
           if (filter && !filename.includes(filter)) return;
           await page.goto(baseURL + scn.route);
           await page.waitForLoadState('networkidle');
-          if (scn.before) beforeResult = await scn.before(page, page.locator(scn.selector), device);
+          if (scn.before) {
+            try {
+              beforeResult = await scn.before(page, page.locator(scn.selector), device);
+            } catch (err) {
+              beforeResult = false;
+              console.error(chalk.redBright(`[screenshot-helper] Error in 'before' (element type) for scenario '${scn.name}' on device '${device}':`), err);
+            }
+          }
           if (beforeResult !== false) {
             await ensureAssetsLoaded(page);
-            if (scn.cleanup) await scn.cleanup(page, page.locator(scn.selector), device);
-            console.log(`${shotNum} ${device} - ${scn.name}`);
+            if (scn.cleanup) {
+              try {
+                await scn.cleanup(page, page.locator(scn.selector), device);
+              } catch (err) {
+                console.error(chalk.redBright(`[screenshot-helper] Error in 'cleanup' (element type) for scenario '${scn.name}' on device '${device}':`), err);
+              }
+            }
+            console.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(scn.name));
             const el = await page.locator(scn.selector);
             await el.screenshot({ path: filename });
           }
@@ -69,12 +96,25 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
           if (filter && !filename.includes(filter)) return;
           await page.goto(baseURL + scn.route);
           await page.waitForLoadState('networkidle');
-          if (scn.before) beforeResult = await scn.before(page, undefined, device);
+          if (scn.before) {
+            try {
+              beforeResult = await scn.before(page, undefined, device);
+            } catch (err) {
+              beforeResult = false;
+              console.error(chalk.redBright(`[screenshot-helper] Error in 'before' for scenario '${scn.name}' on device '${device}':`), err);
+            }
+          }
           if (beforeResult !== false) {
             if (scn.full) { await scroll(page); }
             await ensureAssetsLoaded(page);
-            if (scn.cleanup) await scn.cleanup(page, undefined, device);
-            console.log(`${shotNum} ${device} - ${scn.name}`);
+            if (scn.cleanup) {
+              try {
+                await scn.cleanup(page, undefined, device);
+              } catch (err) {
+                console.error(chalk.redBright(`[screenshot-helper] Error in 'cleanup' for scenario '${scn.name}' on device '${device}':`), err);
+              }
+            }
+            console.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(scn.name));
             await page.screenshot({ path: filename, fullPage: !!scn.full });
           }
           break;
