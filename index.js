@@ -40,10 +40,10 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
         case 'function':
           await page.goto(baseURL + scn.route);
           await page.waitForLoadState('networkidle');
-          if (scn.before) beforeResult = await scn.before(page, page.locator(scn.selector));
+          if (scn.before) beforeResult = await scn.before(page, page.locator(scn.selector), device);
           if (beforeResult !== false) {
             await ensureAssetsLoaded(page);
-            if (scn.cleanup) await scn.cleanup(page, page.locator(scn.selector));
+            if (scn.cleanup) await scn.cleanup(page, page.locator(scn.selector), device);
           }
           break;
 
@@ -53,10 +53,10 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
           if (filter && !filename.includes(filter)) return;
           await page.goto(baseURL + scn.route);
           await page.waitForLoadState('networkidle');
-          if (scn.before) beforeResult = await scn.before(page, page.locator(scn.selector));
+          if (scn.before) beforeResult = await scn.before(page, page.locator(scn.selector), device);
           if (beforeResult !== false) {
             await ensureAssetsLoaded(page);
-            if (scn.cleanup) await scn.cleanup(page, page.locator(scn.selector));
+            if (scn.cleanup) await scn.cleanup(page, page.locator(scn.selector), device);
             console.log(`${shotNum} ${device} - ${scn.name}`);
             const el = await page.locator(scn.selector);
             await el.screenshot({ path: filename });
@@ -69,11 +69,11 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
           if (filter && !filename.includes(filter)) return;
           await page.goto(baseURL + scn.route);
           await page.waitForLoadState('networkidle');
-          if (scn.before) beforeResult = await scn.before(page);
+          if (scn.before) beforeResult = await scn.before(page, undefined, device);
           if (beforeResult !== false) {
             if (scn.full) { await scroll(page); }
             await ensureAssetsLoaded(page);
-            if (scn.cleanup) await scn.cleanup(page);
+            if (scn.cleanup) await scn.cleanup(page, undefined, device);
             console.log(`${shotNum} ${device} - ${scn.name}`);
             await page.screenshot({ path: filename, fullPage: !!scn.full });
           }

@@ -59,9 +59,13 @@ const scenarioData = [
     name: 'cookie-banner',
     route: '/',
     selector: '#cookie-consent-banner',
-    before: async (page, locator) => {
+    before: async (page, locator, device) => {
       await page.waitForFunction(() => !!window.cookieconsent);
       await page.evaluate(() => window.cookieconsent.show());
+      // device is now available as a third argument (e.g. 'desktop' or 'mobile')
+      if (device === 'mobile') {
+        // special handling for mobile...
+      }
       if (!await locator.isVisible()) return false; // skip screenshot if banner is not visible
     }
   },
