@@ -1,7 +1,7 @@
 {
   "name": "screenshot-helper",
   "version": "1.0.0",
-  "description": "",
+  "description": "A helper for taking automated web screenshots using Playwright.",
   "main": "index.cjs",
   "module": "index.js",
   "exports": {
@@ -12,9 +12,24 @@
   "scripts": {
     "test": "NODE_OPTIONS=--experimental-vm-modules jest"
   },
-  "keywords": [],
+  "keywords": [
+    "screenshot",
+    "automation",
+    "playwright",
+    "web",
+    "testing",
+    "helper"
+  ],
   "author": "jamestomasino",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jamestomasino/screenshot-helper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jamestomasino/screenshot-helper/issues"
+  },
+  "homepage": "https://github.com/jamestomasino/screenshot-helper#readme",
   "type": "module",
   "dependencies": {
     "playwright": "^1.54.2"
