@@ -1,4 +1,8 @@
-const esm = require('esm')(module)
-const mod = esm('./index.js')
-// Exports as default for require (legacy CJS entrypoint)
-module.exports = mod.launchScreenshotsRunner
+// CJS loader for ESM default export with async usage pattern
+// Usage: (async () => { const launchScreenshotsRunner = (await require('screenshot-helper'));
+//   await launchScreenshotsRunner(...) })();
+
+module.exports = async function(...args) {
+  const mod = await import('./index.js');
+  return mod.default(...args);
+};

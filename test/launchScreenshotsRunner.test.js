@@ -1,4 +1,8 @@
 import { launchScreenshotsRunner } from '../index.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const isWindows = process.platform === 'win32';
 
 // ----------- UNIT TEST (Dependency injection for Playwright) -----------
 const chromiumMock = {
@@ -30,11 +34,32 @@ test('launchScreenshotsRunner works with minimal scenario config (mocked chromiu
   ).resolves.toBeUndefined();
 });
 
+// ----------- UNIT TEST: CJS dynamic require as users would do -----------
+test('CJS usage via require dynamic import (returns Promise)', async () => {
+  // _dirname polyfill for ESM
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  // Path to our package's CJS entry
+  const pkgMain = path.resolve(__dirname, '../index.cjs');
+
+  const scenarioData = [
+    { type: 'element', route: '/test', name: 'test-cjs', selector: 'body' }
+  ];
+  const devices = { desktop: {} };
+  const baseURL = 'http://localhost:3000';
+
+  // Dynamically require (should resolve to an async fn)
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const cjsExportAsync = await (await import(pkgMain)).default;
+  expect(typeof cjsExportAsync).toBe('function');
+  // Should accept injected mock chromium
+  await expect(
+    cjsExportAsync({ scenarioData, baseURL, devices }, { playwrightChromium: chromiumMock })
+  ).resolves.toBeUndefined();
+});
+
 // ----------- INTEGRATION/E2E TEST (Real Playwright) -----------
-//
 // UNCOMMENT to run a real Playwright test (not for CI!)
-// Requires a running HTTP server on baseURL, and will launch a real browser window.
-//
 // import { chromium } from 'playwright';
 // test('launchScreenshotsRunner completes real run (opens a browser window)', async () => {
 //   const scenarioData = [
