@@ -1,0 +1,26 @@
+{
+  "name": "screenshot-helper",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.cjs",
+  "module": "index.js",
+  "exports": {
+    "import": "./index.js",
+    "require": "./index.cjs"
+  },
+  "types": "./index.d.ts",
+  "scripts": {
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest"
+  },
+  "keywords": [],
+  "author": "jamestomasino",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "playwright": "^1.54.2"
+  },
+  "devDependencies": {
+    "@jest/globals": "^30.0.5",
+    "jest": "^30.0.5"
+  }
+}
