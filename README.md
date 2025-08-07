@@ -116,9 +116,31 @@ launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, httpCredential
 
 ---
 
+## Scenario Types
+
+screenshot-helper supports 3 scenario `type` modes for maximum control:
+
+- **Default (Page)**
+  - Omit `type`, or use any unrecognized value.
+  - Screenshots the full page or just the viewport (if `full: true`) after running optional `before` and `cleanup` hooks.
+  - `selector` is ignored.
+  - If `full: true`, the page is scrolled to capture the entire length.
+
+- **Element (`type: 'element'`)**
+  - Only screenshots the area of a specific DOM element, as matched by `selector`.
+  - If `full: true`, temporarily resizes the viewport to fit the entire element (even if larger than the viewport) to ensure a complete capture.
+  - Receives `before(page, locator, device)` and `cleanup(page, locator, device)` for custom setup/teardown.
+
+- **Function (`type: 'function'`)**
+  - For advanced/edge scenarios requiring full Playwright scripting.
+  - Hooks are given both the `page` object and a locator for chaining or ignoring as you wish: `before(page, locator, device)`.
+  - Does not perform any screenshot by default—your hook code should perform interactions as needed. You can use these for setup, or for logic-only tasks that do not result directly in a screenshot.
+
+---
+
 ## Advanced Patterns
 
-Use `type: 'element'` for element screenshots, or `type: 'function'` scenarios for full scriptable logic.  
+Use `type: 'element'` for element screenshots, or `type: 'function'` scenarios for full scriptable logic.
 You can chain Playwright's `page` and `locator` methods inside your hooks, interact with dynamic JS elements, or conditionally skip screenshots.
 
 ---

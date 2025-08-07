@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { launchScreenshotsRunner } from '../index.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,10 +12,13 @@ const chromiumMock = {
       newPage: async () => ({
         waitForLoadState: async () => {},
         evaluate: async () => {},
-        locator: () => ({
+        locator: (selector) => ({
           screenshot: async () => {},
+          boundingBox: async () => ({ width: 100, height: 200 }), // For full: true
         }),
         goto: async () => {},
+        viewportSize: () => ({ width: 800, height: 600 }),
+        setViewportSize: async () => {},
       }),
       close: async () => {},
     }),
@@ -32,6 +36,47 @@ test('launchScreenshotsRunner works with minimal scenario config (mocked chromiu
   await expect(
     launchScreenshotsRunner({ scenarioData, baseURL, devices }, { playwrightChromium: chromiumMock })
   ).resolves.toBeUndefined();
+});
+
+test('launchScreenshotsRunner captures full element if `full: true` is set (mocked chromium)', async () => {
+  // We add jest.fn() spies to check call behavior
+  const mockScreenshot = jest.fn();
+  const mockBoundingBox = jest.fn().mockResolvedValue({ width: 123, height: 234 });
+  const mockSetViewportSize = jest.fn();
+  const mockViewportSize = jest.fn().mockReturnValue({ width: 800, height: 600 });
+  const chromiumSpy = {
+    launch: async () => ({
+      newContext: async () => ({
+        newPage: async () => ({
+          waitForLoadState: async () => {},
+          evaluate: async () => {},
+          locator: (selector) => ({
+            screenshot: mockScreenshot,
+            boundingBox: mockBoundingBox,
+          }),
+          goto: async () => {},
+          viewportSize: mockViewportSize,
+          setViewportSize: mockSetViewportSize,
+        }),
+        close: async () => {},
+      }),
+      close: async () => {},
+    }),
+  };
+  const scenarioData = [
+    { type: 'element', route: '/test', name: 'test-full-elem', selector: 'body', full: true }
+  ];
+  const baseURL = 'http://localhost:3000';
+  const devices = { desktop: {} };
+  await launchScreenshotsRunner(
+    { scenarioData, baseURL, devices },
+    { playwrightChromium: chromiumSpy }
+  );
+  expect(mockBoundingBox).toHaveBeenCalled();
+  expect(mockSetViewportSize).toHaveBeenCalledWith({ width: 123, height: 234 });
+  expect(mockScreenshot).toHaveBeenCalled();
+  // Should restore original viewport after
+  expect(mockSetViewportSize).toHaveBeenCalledWith({ width: 800, height: 600 });
 });
 
 // ----------- UNIT TEST: CJS dynamic require as users would do -----------

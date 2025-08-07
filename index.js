@@ -86,7 +86,28 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
             }
             console.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(scn.name));
             const el = await page.locator(scn.selector);
+            if (!el) return false
+
+            let originalViewport;
+            if (scn.full) {
+              // if full is set, resize viewport to the element temporarily to see all of it
+              const boundingBox = await el.boundingBox();
+              if (!boundingBox) throw new Error('Element not found or not visible');
+
+              // Remember the original viewport size
+              originalViewport = page.viewportSize();
+
+              // Set the viewport to fit the element
+              await page.setViewportSize({
+                width: Math.ceil(boundingBox.width),
+                height: Math.ceil(boundingBox.height)
+              });
+            }
             await el.screenshot({ path: filename });
+            if (scn.full) {
+              // now restore the old viewport
+              await page.setViewportSize(originalViewport);
+            }
           }
           break;
 
