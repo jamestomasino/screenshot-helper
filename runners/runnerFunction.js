@@ -2,6 +2,8 @@ import { ensureAssetsLoaded } from './utils.js';
 import chalk from 'chalk';
 
 export default async function runFunctionScenario({ page, baseURL, scn, device, filter }) {
+  const scenarioName = scn.name;
+
   let beforeResult = true;
   await page.goto(baseURL + scn.route);
   await page.waitForLoadState('networkidle');
@@ -14,7 +16,7 @@ export default async function runFunctionScenario({ page, baseURL, scn, device, 
     }
   }
   if (beforeResult === false) return;
-  console.log(chalk.green.bold(`[${device}]`), chalk.white('-', ''), chalk.yellow(scn.name));
+  console.log(chalk.green.bold(`[${device}]`), chalk.magenta('<function>'), chalk.white('-', ''), chalk.yellow(scenarioName));
   await ensureAssetsLoaded(page);
   if (scn.cleanup) {
     try {
