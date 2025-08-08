@@ -106,7 +106,7 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
                   const tileX = Math.floor(boundingBox.x + col * viewport.width);
                   const tileY = Math.floor(boundingBox.y + row * viewport.height);
 
-                  await page.evaluate((x, y) => { window.scrollTo(x, y); }, tileX, tileY);
+                  await page.evaluate(({ x, y }) => { window.scrollTo(x, y); }, { x: tileX, y: tileY });
                   await page.waitForTimeout(100); // let scroll render
 
                   const clip = {
