@@ -31,16 +31,18 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
   const el = await page.locator(scn.selector);
   if (!el) return shotNum;
   if (scn.full) {
-    console.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(scn.name));
     const boundingBox = await el.boundingBox();
     if (!boundingBox) throw new Error('Element not found or not visible');
     const viewport = page.viewportSize();
     if (!viewport) throw new Error('Viewport size detection failed');
     const cols = Math.ceil(boundingBox.width / viewport.width);
     const rows = Math.ceil(boundingBox.height / viewport.height);
-    const tileBuffers = [];
+    await import('fs/promises').then(fs => fs.mkdir('screenshots', { recursive: true }));
+    let tileIdx = 0;
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
+        const suffix = String.fromCharCode('a'.charCodeAt(0) + tileIdx);
+        const tileFilename = `screenshots/${device}-${String(shotNum).padStart(3, '0')}${suffix}-${scn.name}.png`;
         const tileX = Math.floor(boundingBox.x + col * viewport.width);
         const tileY = Math.floor(boundingBox.y + row * viewport.height);
         await page.evaluate(({ x, y }) => { window.scrollTo(x, y); }, { x: tileX, y: tileY });
@@ -51,35 +53,12 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
           height: Math.min(viewport.height, Math.ceil(boundingBox.height - (row * viewport.height)))
         };
         if (clip.width > 0 && clip.height > 0) {
-          tileBuffers.push(await page.screenshot({ clip }));
+          await el.screenshot({ path: tileFilename, clip });
+          console.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}${suffix}`), chalk.white('-'), chalk.yellow(scn.name));
         }
+        tileIdx++;
       }
     }
-    await import('fs/promises').then(fs => fs.mkdir('screenshots', { recursive: true }));
-    let stitchedImage = sharp({
-      create: {
-        width: Math.ceil(boundingBox.width),
-        height: Math.ceil(boundingBox.height),
-        channels: 4,
-        background: { r: 0, g: 0, b: 0, alpha: 0 }
-      }
-    });
-    const composites = [];
-    let idx = 0;
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const left = col * viewport.width;
-        const top = row * viewport.height;
-        if (left >= Math.ceil(boundingBox.width) || top >= Math.ceil(boundingBox.height)) continue;
-        composites.push({
-          input: tileBuffers[idx++],
-          left,
-          top,
-        });
-      }
-    }
-    stitchedImage = stitchedImage.composite(composites);
-    await stitchedImage.png().toFile(filename);
   } else {
     console.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(scn.name));
     await el.screenshot({ path: filename });
