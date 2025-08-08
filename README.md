@@ -128,7 +128,7 @@ screenshot-helper supports 3 scenario `type` modes for maximum control:
 
 - **Element (`type: 'element'`)**
   - Only screenshots the area of a specific DOM element, as matched by `selector`.
-  - If `full: true`, the screenshot will output multiple PNG files ("tiles/fragments") per element, scrolling through both axes using Playwright. This pans through overflow within the selected element via `element.scrollTo`, so containers wider or taller than the viewport are robustly covered. Files are named with letter suffixes (e.g. `...001a-`, `...001b-`, etc). No post-stitching is performed and no `sharp` is used. No viewport resizing is required.
+  - If `full: true`, the screenshot will output multiple PNG files ("tiles/fragments") per element, scrolling through both axes using Playwright. This pans through overflow within the selected element via `element.scrollTo`, so containers wider or taller than the viewport are robustly covered. Files are named with letter suffixes (e.g. `...001a-`, `...001b-`, etc). 
   - Receives `before(page, locator, device)` and `cleanup(page, locator, device)` for custom setup/teardown.
 
 - **Function (`type: 'function'`)**

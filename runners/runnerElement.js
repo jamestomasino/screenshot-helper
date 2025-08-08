@@ -1,5 +1,3 @@
-import sharp from 'sharp';
-
 import { ensureAssetsLoaded } from './utils.js';
 import chalk from 'chalk';
 
