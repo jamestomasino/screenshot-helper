@@ -128,7 +128,7 @@ screenshot-helper supports 3 scenario `type` modes for maximum control:
 
 - **Element (`type: 'element'`)**
   - Only screenshots the area of a specific DOM element, as matched by `selector`.
-  - If `full: true`, temporarily resizes the viewport to fit the entire element (even if larger than the viewport) to ensure a complete capture.
+  - If `full: true`, the screenshot will automatically mosaic multiple tiles (with scrolling) to cover the entire element—both wider and taller than the viewport—using Playwright for tiling and the `sharp` library to stitch/compose the final PNG. No viewport resizing is required.
   - Receives `before(page, locator, device)` and `cleanup(page, locator, device)` for custom setup/teardown.
 
 - **Function (`type: 'function'`)**
