@@ -1,5 +1,6 @@
 import { chromium as chromiumDefault } from 'playwright';
 import chalk from 'chalk';
+import sharp from 'sharp';
 
 async function ensureAssetsLoaded(page) {
   await page.waitForLoadState('networkidle');
@@ -87,35 +88,62 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
             const el = await page.locator(scn.selector);
             if (!el) return false
 
-            let originalViewport;
             if (scn.full) {
-              // if full is set, resize viewport to the element temporarily to see all of it
+              // Mosaic (tiling) mode: capture element using multiple viewport-sized screenshots and stitch
               const boundingBox = await el.boundingBox();
               if (!boundingBox) throw new Error('Element not found or not visible');
 
-              // Remember the original viewport size
-              originalViewport = page.viewportSize();
+              const viewport = page.viewportSize();
+              if (!viewport)
+                throw new Error("Viewport size detection failed");
 
-              // Set the viewport to fit the element
-              await page.setViewportSize({
-                width: Math.ceil(boundingBox.width),
-                height: Math.ceil(boundingBox.height)
-              });
-              // Ensure html/body min-width allows wide elements to be fully rendered
-              await page.evaluate(({ sel, w }) => {
-                const el = document.querySelector(sel);
-                if (!el) return;
-                // Only widen body/html if element would overflow
-                if (el.offsetWidth > document.documentElement.offsetWidth) {
-                  document.documentElement.style.minWidth = el.offsetWidth + 'px';
-                  document.body.style.minWidth = el.offsetWidth + 'px';
+              const cols = Math.ceil(boundingBox.width / viewport.width);
+              const rows = Math.ceil(boundingBox.height / viewport.height);
+              const tileBuffers = [];
+
+              for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                  const tileX = Math.floor(boundingBox.x + col * viewport.width);
+                  const tileY = Math.floor(boundingBox.y + row * viewport.height);
+
+                  await page.evaluate((x, y) => { window.scrollTo(x, y); }, tileX, tileY);
+                  await page.waitForTimeout(100); // let scroll render
+
+                  const clip = {
+                    x: tileX,
+                    y: tileY,
+                    width: Math.min(viewport.width, Math.ceil(boundingBox.width - (col * viewport.width))),
+                    height: Math.min(viewport.height, Math.ceil(boundingBox.height - (row * viewport.height)))
+                  };
+                  tileBuffers.push(await page.screenshot({ clip }));
                 }
-              }, { sel: scn.selector, w: Math.ceil(boundingBox.width) });
-            }
-            await el.screenshot({ path: filename });
-            if (scn.full) {
-              // now restore the old viewport
-              await page.setViewportSize(originalViewport);
+              }
+
+              // Compose mosaic image
+              // Compose mosaic image: lay tiles out in a blank image using sharp composite
+              let stitchedImage = sharp({
+                create: {
+                  width: Math.ceil(boundingBox.width),
+                  height: Math.ceil(boundingBox.height),
+                  channels: 4,
+                  background: { r: 0, g: 0, b: 0, alpha: 0 }
+                }
+              });
+              const composites = [];
+              let idx = 0;
+              for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                  composites.push({
+                    input: tileBuffers[idx++],
+                    left: col * viewport.width,
+                    top: row * viewport.height,
+                  });
+                }
+              }
+              stitchedImage = stitchedImage.composite(composites);
+              await stitchedImage.png().toFile(filename);
+            } else {
+              await el.screenshot({ path: filename });
             }
           }
           break;

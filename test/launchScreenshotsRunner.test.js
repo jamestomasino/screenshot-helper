@@ -38,12 +38,9 @@ test('launchScreenshotsRunner works with minimal scenario config (mocked chromiu
   ).resolves.toBeUndefined();
 });
 
-test('launchScreenshotsRunner captures full element if `full: true` is set (mocked chromium)', async () => {
-  // We add jest.fn() spies to check call behavior
+// NOTE: Mosaic (full tiling) logic is only tested in integration, not here.
+test('launchScreenshotsRunner captures element screenshot (mocked chromium)', async () => {
   const mockScreenshot = jest.fn();
-  const mockBoundingBox = jest.fn().mockResolvedValue({ width: 123, height: 234 });
-  const mockSetViewportSize = jest.fn();
-  const mockViewportSize = jest.fn().mockReturnValue({ width: 800, height: 600 });
   const chromiumSpy = {
     launch: async () => ({
       newContext: async () => ({
@@ -52,11 +49,9 @@ test('launchScreenshotsRunner captures full element if `full: true` is set (mock
           evaluate: async () => {},
           locator: (selector) => ({
             screenshot: mockScreenshot,
-            boundingBox: mockBoundingBox,
+            boundingBox: jest.fn(),
           }),
           goto: async () => {},
-          viewportSize: mockViewportSize,
-          setViewportSize: mockSetViewportSize,
         }),
         close: async () => {},
       }),
@@ -64,7 +59,7 @@ test('launchScreenshotsRunner captures full element if `full: true` is set (mock
     }),
   };
   const scenarioData = [
-    { type: 'element', route: '/test', name: 'test-full-elem', selector: 'body', full: true }
+    { type: 'element', route: '/test', name: 'test-elem', selector: 'body' }
   ];
   const baseURL = 'http://localhost:3000';
   const devices = { desktop: {} };
@@ -72,12 +67,9 @@ test('launchScreenshotsRunner captures full element if `full: true` is set (mock
     { scenarioData, baseURL, devices },
     { playwrightChromium: chromiumSpy }
   );
-  expect(mockBoundingBox).toHaveBeenCalled();
-  expect(mockSetViewportSize).toHaveBeenCalledWith({ width: 123, height: 234 });
   expect(mockScreenshot).toHaveBeenCalled();
-  // Should restore original viewport after
-  expect(mockSetViewportSize).toHaveBeenCalledWith({ width: 800, height: 600 });
 });
+
 
 // ----------- UNIT TEST: CJS dynamic require as users would do -----------
 test('CJS usage via require dynamic import (returns Promise)', async () => {
