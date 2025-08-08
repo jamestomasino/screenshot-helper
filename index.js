@@ -1,4 +1,3 @@
-// Refactored: accepts playwrightChromium as a parameter for dependency injection (test mocking support)
 import { chromium as chromiumDefault } from 'playwright';
 import chalk from 'chalk';
 
