@@ -1,5 +1,4 @@
 import http from 'http';
-import sharp from 'sharp';
 import fs from 'fs/promises';
 import path from 'path';
 import { glob } from 'glob';
@@ -52,8 +51,9 @@ describe('Full mosaic (tiling) PNG output [integration]', () => {
     for (const file of matches) {
       const stat = await fs.stat(file);
       expect(stat.size).toBeGreaterThan(0);
-      const info = await sharp(file).metadata();
-      expect(info.format).toBe('png');
+      const buf = await fs.readFile(file);
+      const sig = Array.from(buf.slice(0, 8));
+      expect(sig).toEqual([137,80,78,71,13,10,26,10]);
     }
   }, 20000);
 });
