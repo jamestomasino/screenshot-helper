@@ -1,82 +1,243 @@
 import { ensureAssetsLoaded } from './utils.js';
 import chalk from 'chalk';
 
+// -------------------------
+// Small utilities
+// -------------------------
+const settleNextFrame = (page, n = 2) =>
+  page.evaluate((count) => new Promise(r => {
+    const hop = () => count-- ? requestAnimationFrame(hop) : r();
+    requestAnimationFrame(hop);
+  }), n);
+
+const logShot = (device, shotNum, name) =>
+  console.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(name));
+
+// -------------------------
+// Public runner
+// -------------------------
 export default async function runElementScenario({ page, baseURL, scn, device, filter, shotNum }) {
-  let filename;
-  let beforeResult = true;
   shotNum++;
-  filename = `screenshots/${device}-${String(shotNum).padStart(3, '0')}-${scn.name}.png`;
+  const filename = `screenshots/${device}-${String(shotNum).padStart(3, '0')}-${scn.name}.png`;
   if (filter && !filename.includes(filter)) return shotNum;
+
   await page.goto(baseURL + scn.route);
   await page.waitForLoadState('networkidle');
+
+  const target = page.locator(scn.selector);
+
+  // before hook
   if (scn.before) {
-    try {
-      beforeResult = await scn.before(page, page.locator(scn.selector), device);
-    } catch (err) {
-      beforeResult = false;
-      throw new Error(`[element type] 'before' threw: ${err}`);
-    }
+    try { if (await scn.before(page, target, device) === false) return shotNum; }
+    catch (err) { throw new Error(`[element type] 'before' threw: ${err}`); }
   }
-  if (beforeResult === false) return shotNum;
+
   await ensureAssetsLoaded(page);
+
+  // cleanup hook
   if (scn.cleanup) {
-    try {
-      await scn.cleanup(page, page.locator(scn.selector), device);
-    } catch (err) {
-      throw new Error(`[element type] 'cleanup' threw: ${err}`);
-    }
+    try { await scn.cleanup(page, target, device); }
+    catch (err) { throw new Error(`[element type] 'cleanup' threw: ${err}`); }
   }
-  const el = await page.locator(scn.selector);
-  if (!el) return shotNum;
-  console.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(scn.name));
+
+  logShot(device, shotNum, scn.name);
+
   if (scn.full) {
-    await screenshotFullOverflowX(page, scn.selector, filename);
+    await screenshotElementSimple(page, scn.selector, filename, {
+      directions: 'both',
+      preferScaleFallback: !!scn.preferScaleFallback
+    });
   } else {
-    await el.screenshot({ path: filename });
+    await target.screenshot({ path: filename, animations: 'disabled' });
   }
+
   return shotNum;
 }
 
-async function screenshotFullOverflowX(page, selector, outPath) {
+// -------------------------
+// Full-element, single-shot helper
+// -------------------------
+async function screenshotElementSimple(page, selector, outPath, { directions = 'both', preferScaleFallback = false } = {}) {
   const el = page.locator(selector);
   await el.scrollIntoViewIfNeeded();
 
-  // If no horizontal overflow, just shoot it.
-  const { cw, sw } = await el.evaluate(n => ({ cw: n.clientWidth, sw: n.scrollWidth }));
-  if (sw <= cw) {
+  const { overX, overY } = await el.evaluate(n => ({
+    overX: n.scrollWidth > n.clientWidth,
+    overY: n.scrollHeight > n.clientHeight
+  }));
+  const needX = (directions === 'x' || directions === 'both') && overX;
+  const needY = (directions === 'y' || directions === 'both') && overY;
+
+  if (!needX && !needY) {
     await el.screenshot({ path: outPath, animations: 'disabled' });
     return;
   }
 
-  // 1) Relax overflow site-wide temporarily
-  const styleHandle = await page.addStyleTag({
-    content: `*,html,body{overflow:visible !important;}`
+  if (preferScaleFallback) {
+    await screenshotByScaling(page, selector, outPath);
+    return;
+  }
+
+  const expanded = await expandToNaturalSize(el, { needX, needY });
+  await settleNextFrame(page, 2);
+
+  const fits = await el.evaluate((node, args) => {
+    const rect = node.getBoundingClientRect();
+    const wOk = !args.needX || Math.round(rect.width)  >= Math.round(node.scrollWidth);
+    const hOk = !args.needY || Math.round(rect.height) >= Math.round(node.scrollHeight);
+    return wOk && hOk;
+  }, { needX, needY });
+
+  if (!expanded || !fits) {
+    await restoreExpandedStyles(page);
+    await screenshotByScaling(page, selector, outPath);
+    return;
+  }
+
+  await el.screenshot({ path: outPath, animations: 'disabled' });
+  await restoreExpandedStyles(page);
+}
+
+// Expand the element (and closest scroll container) to reveal full scroll area, then let Playwright stitch it.
+async function expandToNaturalSize(locator, { needX, needY }) {
+  return locator.evaluate((node, args) => {
+    const remember = (el, prop, val) => {
+      const key = `ss_${prop}`;
+      if (el.dataset[key] === undefined) el.dataset[key] = el.style[prop] || '';
+      el.style[prop] = val;
+    };
+
+    // Relax clipping up the chain
+    for (let p = node.parentElement; p; p = p.parentElement) {
+      const cs = getComputedStyle(p);
+      if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') remember(p, 'overflow', 'visible');
+      if (cs.clipPath !== 'none') remember(p, 'clipPath', 'none');
+      if (cs.mask !== 'none')     remember(p, 'mask', 'none');
+      if (cs.contain !== 'none')  remember(p, 'contain', 'none');
+    }
+
+    // Find nearest scroll container that actually clips
+    const findScroller = (start) => {
+      for (let a = start.parentElement; a; a = a.parentElement) {
+        const cs = getComputedStyle(a);
+        const clips = (cs.overflowX !== 'visible' || cs.overflowY !== 'visible');
+        const scrollX = a.scrollWidth  > a.clientWidth;
+        const scrollY = a.scrollHeight > a.clientHeight;
+        if (clips && ((args.needX && scrollX) || (args.needY && scrollY))) return a;
+      }
+      return null;
+    };
+    const scroller = findScroller(node);
+
+    // Natural width for TABLE via off-screen clone (table-layout auto)
+    const naturalTableWidth = (tbl) => {
+      const clone = tbl.cloneNode(true);
+      Object.assign(clone.style, {
+        position: 'absolute', visibility: 'hidden', left: '-100000px', top: '0',
+        width: 'auto', maxWidth: 'none', tableLayout: 'auto'
+      });
+      document.body.appendChild(clone);
+      const w = Math.ceil(Math.max(clone.scrollWidth, clone.offsetWidth, clone.getBoundingClientRect().width));
+      clone.remove();
+      return w;
+    };
+
+    // Expand target
+    if (args.needX) {
+      const targetW = node.tagName === 'TABLE'
+        ? naturalTableWidth(node)
+        : Math.max(node.scrollWidth, node.getBoundingClientRect().width);
+      remember(node, 'maxWidth', 'none');
+      remember(node, 'width', `${targetW}px`);
+    }
+    if (args.needY) {
+      const targetH = Math.max(node.scrollHeight, node.getBoundingClientRect().height);
+      remember(node, 'maxHeight', 'none');
+      remember(node, 'height', `${targetH}px`);
+    }
+    remember(node, 'overflow', 'visible');
+
+    // Expand scroller to match (critical when scroll lives on a wrapper)
+    if (scroller) {
+      if (args.needX) { remember(scroller, 'maxWidth', 'none'); remember(scroller, 'width',  `${node.scrollWidth}px`); }
+      if (args.needY) { remember(scroller, 'maxHeight','none'); remember(scroller, 'height', `${node.scrollHeight}px`); }
+      remember(scroller, 'overflow', 'visible');
+    }
+
+    document.documentElement.dataset.ssTouched = '1';
+    return true;
+  }, { needX, needY });
+}
+
+// Restore any inline styles we touched
+async function restoreExpandedStyles(page) {
+  await page.evaluate(() => {
+    if (!document.documentElement.dataset.ssTouched) return;
+    for (const el of document.querySelectorAll('*')) {
+      for (const [k, v] of Object.entries(el.dataset)) {
+        if (k.startsWith('ss_')) {
+          const prop = k.slice(3);
+          try { el.style[prop] = v || ''; } catch {}
+          delete el.dataset[k];
+        }
+      }
+    }
+    delete document.documentElement.dataset.ssTouched;
   });
+}
 
-  // 2) Expand the element to its full scrollable width
-  await el.evaluate(node => {
-    node.setAttribute('data-ss-prev-width', node.style.width || '');
-    node.setAttribute('data-ss-prev-maxwidth', node.style.maxWidth || '');
-    node.setAttribute('data-ss-prev-overflow', node.style.overflow || '');
-    node.style.width = node.scrollWidth + 'px';
-    node.style.maxWidth = 'none';
-    node.style.overflow = 'visible';
-  });
+// Fallback: scale the page so the element fits the current viewport (preserves breakpoints)
+async function screenshotByScaling(page, selector, outPath) {
+  const el = page.locator(selector);
+  await el.scrollIntoViewIfNeeded();
 
-  // Let layout settle
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const vp = page.viewportSize();
+  if (!vp) throw new Error('No viewport');
 
-  // 3) Screenshot the full element
+  const { sw, sh } = await el.evaluate(n => ({ sw: n.scrollWidth, sh: n.scrollHeight }));
+  const scale = Math.min(1, vp.width / sw, vp.height / sh);
+
+  if (scale >= 0.999) {
+    await el.screenshot({ path: outPath, animations: 'disabled' });
+    return;
+  }
+
+  await page.evaluate((s) => {
+    const html = document.documentElement, body = document.body;
+
+    html.dataset.ss_overflow = html.style.overflow || '';
+    body.dataset.ss_overflow = body.style.overflow || '';
+    html.style.overflow = 'visible';
+    body.style.overflow = 'visible';
+
+    let wrap = document.getElementById('__sswrap__');
+    if (!wrap) {
+      wrap = document.createElement('div'); wrap.id = '__sswrap__';
+      while (body.firstChild) wrap.appendChild(body.firstChild);
+      body.appendChild(wrap);
+    }
+
+    wrap.dataset.ss_transform = wrap.style.transform || '';
+    wrap.dataset.ss_origin    = wrap.style.transformOrigin || '';
+    wrap.dataset.ss_width     = wrap.style.width || '';
+    wrap.style.transformOrigin = 'top left';
+    wrap.style.transform = `scale(${s})`;
+    wrap.style.width = (100 / s) + '%';
+  }, scale);
+
+  await settleNextFrame(page, 2);
+
   await el.screenshot({ path: outPath, animations: 'disabled' });
 
-  // 4) Restore styles
-  await el.evaluate(node => {
-    node.style.width = node.getAttribute('data-ss-prev-width') || '';
-    node.style.maxWidth = node.getAttribute('data-ss-prev-maxwidth') || '';
-    node.style.overflow = node.getAttribute('data-ss-prev-overflow') || '';
-    node.removeAttribute('data-ss-prev-width');
-    node.removeAttribute('data-ss-prev-maxwidth');
-    node.removeAttribute('data-ss-prev-overflow');
+  await page.evaluate(() => {
+    const html = document.documentElement, body = document.body, wrap = document.getElementById('__sswrap__');
+    if (wrap) {
+      while (wrap.firstChild) body.appendChild(wrap.firstChild);
+      wrap.remove();
+    }
+    html.style.overflow = html.dataset.ss_overflow || '';
+    body.style.overflow = body.dataset.ss_overflow || '';
+    delete html.dataset.ss_overflow;
+    delete body.dataset.ss_overflow;
   });
-  await styleHandle.evaluate(n => n.remove());
 }
