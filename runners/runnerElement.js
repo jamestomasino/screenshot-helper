@@ -45,7 +45,10 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
         const tileFilename = `screenshots/${device}-${String(shotNum).padStart(3, '0')}${suffix}-${scn.name}.png`;
         const tileX = Math.floor(boundingBox.x + col * viewport.width);
         const tileY = Math.floor(boundingBox.y + row * viewport.height);
-        await page.evaluate(({ x, y }) => { window.scrollTo(x, y); }, { x: tileX, y: tileY });
+        await page.evaluate(({ sel, scrollLeft, scrollTop }) => {
+          const el = document.querySelector(sel);
+          if (el) el.scrollTo(scrollLeft, scrollTop);
+        }, { sel: scn.selector, scrollLeft: tileX, scrollTop: tileY });
         await page.waitForTimeout(100);
         const clip = {
           x: 0, y: 0,
