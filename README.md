@@ -181,7 +181,3 @@ ISC (see LICENSE file)
 
 **See also:**  
 - [test/launchScreenshotsRunner.test.js](./test/launchScreenshotsRunner.test.js) for more usage patterns
-
----
-
-Let me know if you want even more detail, CLI flag docs, or extended API explanations!
