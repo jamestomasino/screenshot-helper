@@ -106,21 +106,27 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
                   const tileX = Math.floor(boundingBox.x + col * viewport.width);
                   const tileY = Math.floor(boundingBox.y + row * viewport.height);
 
+                  // Scroll to tileX, tileY
                   await page.evaluate(({ x, y }) => { window.scrollTo(x, y); }, { x: tileX, y: tileY });
                   await page.waitForTimeout(100); // let scroll render
 
+                  // Always screenshot from viewport's (0,0); only the visible portion
                   const clip = {
-                    x: tileX,
-                    y: tileY,
+                    x: 0,
+                    y: 0,
                     width: Math.min(viewport.width, Math.ceil(boundingBox.width - (col * viewport.width))),
                     height: Math.min(viewport.height, Math.ceil(boundingBox.height - (row * viewport.height)))
                   };
-                  tileBuffers.push(await page.screenshot({ clip }));
+                  if (clip.width > 0 && clip.height > 0) {
+                    tileBuffers.push(await page.screenshot({ clip }));
+                  }
                 }
               }
 
               // Compose mosaic image
               // Compose mosaic image: lay tiles out in a blank image using sharp composite
+              // Ensure screenshots directory exists
+              await import('fs/promises').then(fs => fs.mkdir('screenshots', { recursive: true }));
               let stitchedImage = sharp({
                 create: {
                   width: Math.ceil(boundingBox.width),
@@ -133,10 +139,17 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
               let idx = 0;
               for (let row = 0; row < rows; row++) {
                 for (let col = 0; col < cols; col++) {
+                  // Compute region for this tile
+                  const left = col * viewport.width;
+                  const top = row * viewport.height;
+                  const tileWidth = Math.min(viewport.width, Math.ceil(boundingBox.width - (col * viewport.width)));
+                  const tileHeight = Math.min(viewport.height, Math.ceil(boundingBox.height - (row * viewport.height)));
+                  // For safety: skip tiles that would exceed target canvas or where dim is 0
+                  if (left >= Math.ceil(boundingBox.width) || top >= Math.ceil(boundingBox.height)) continue;
                   composites.push({
                     input: tileBuffers[idx++],
-                    left: col * viewport.width,
-                    top: row * viewport.height,
+                    left,
+                    top,
                   });
                 }
               }
