@@ -102,6 +102,16 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
                 width: Math.ceil(boundingBox.width),
                 height: Math.ceil(boundingBox.height)
               });
+              // Ensure html/body min-width allows wide elements to be fully rendered
+              await page.evaluate((sel, w) => {
+                const el = document.querySelector(sel);
+                if (!el) return;
+                // Only widen body/html if element would overflow
+                if (el.offsetWidth > document.documentElement.offsetWidth) {
+                  document.documentElement.style.minWidth = el.offsetWidth + 'px';
+                  document.body.style.minWidth = el.offsetWidth + 'px';
+                }
+              }, scn.selector, Math.ceil(boundingBox.width));
             }
             await el.screenshot({ path: filename });
             if (scn.full) {
