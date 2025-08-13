@@ -14,6 +14,8 @@ Automate high-quality screenshots of web pages for testing, visual review, and d
 - Granular capture: full-page, clipped to element, function-based, etc.
 - Use filters to selectively run a subset of scenarios
 - Strong integration for visual testing and asset generation
+- Errors in scenarios (including Playwright errors) are always caught: process never crashes, errors are highlighted and remaining scenarios continue.
+- Full ES module (ESM) support everywhere; tested with [Vitest](https://vitest.dev/).
 
 ---
 
@@ -22,9 +24,25 @@ Automate high-quality screenshots of web pages for testing, visual review, and d
 ```sh
 npm install screenshot-helper
 ```
-or
+
+**For development/contributors:**
 ```sh
-yarn add screenshot-helper
+npm install --save-dev vitest
+```
+
+---
+
+## Running the Tests
+
+This project uses [Vitest](https://vitest.dev/) for all unit and integration tests and supports top-level `import`/`export` JavaScript syntax out of the box. No Babel or legacy Jest config is needed with Node.js (>=18).
+
+```sh
+npm test
+```
+
+Or run a single test file:
+```sh
+npx vitest run test/your.test.js
 ```
 
 ---

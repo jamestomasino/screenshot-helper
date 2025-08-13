@@ -10,6 +10,8 @@ const TEST_HTML = (extra = '') => `
 <!DOCTYPE html>
 <html><head><title>Utils Test</title></head><body>${extra}</body></html>`;
 
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+
 describe('utils.js integration (Playwright)', () => {
   let server;
   beforeAll(done => {

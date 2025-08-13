@@ -25,7 +25,20 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
     }
 
     for (const scenario of scenarioData) {
-      await runScenario(scenario);
+      try {
+        await runScenario(scenario);
+      } catch (err) {
+        console.log(chalk.red.bold('ERROR:'));
+        if (err && err.stack) {
+          console.error(err.stack);
+        } else {
+          console.error(err);
+        }
+        // Always increment shotNum if type is 'element' or 'page' (these return current shotNum)
+        if (scenario.type === 'element' || scenario.type === 'page') {
+          shotNum++;
+        }
+      }
     }
     await context.close();
   };

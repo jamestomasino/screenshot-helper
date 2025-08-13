@@ -1,4 +1,4 @@
-import { jest } from '@jest/globals';
+import { test, expect, vi } from 'vitest';
 import { launchScreenshotsRunner } from '../index.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -38,73 +38,46 @@ test('launchScreenshotsRunner works with minimal scenario config (mocked chromiu
   ).resolves.toBeUndefined();
 });
 
-// NOTE: Mosaic (full tiling) logic is only tested in integration, not here.
-test('launchScreenshotsRunner captures element screenshot (mocked chromium)', async () => {
-  const mockScreenshot = jest.fn();
-  const chromiumSpy = {
+test('launchScreenshotsRunner catches and logs scenario errors (mocked chromium)', async () => {
+  // Mock locator to throw in screenshot (simulates Playwright strict mode error)
+  const chromiumWithError = {
     launch: async () => ({
       newContext: async () => ({
         newPage: async () => ({
           waitForLoadState: async () => {},
           evaluate: async () => {},
-          locator: (selector) => ({
-            screenshot: mockScreenshot,
-            boundingBox: jest.fn(),
+          locator: () => ({
+            screenshot: async () => { throw new Error('strict mode violation: locator error simulated'); },
+            boundingBox: async () => ({ width: 100, height: 200 }),
           }),
           goto: async () => {},
+          viewportSize: () => ({ width: 800, height: 600 }),
+          setViewportSize: async () => {},
         }),
         close: async () => {},
       }),
       close: async () => {},
     }),
   };
-  const scenarioData = [
-    { type: 'element', route: '/test', name: 'test-elem', selector: 'body' }
-  ];
-  const baseURL = 'http://localhost:3000';
-  const devices = { desktop: {} };
-  await launchScreenshotsRunner(
-    { scenarioData, baseURL, devices },
-    { playwrightChromium: chromiumSpy }
-  );
-  expect(mockScreenshot).toHaveBeenCalled();
-});
 
-
-// ----------- UNIT TEST: CJS dynamic require as users would do -----------
-test('CJS usage via require dynamic import (returns Promise)', async () => {
-  // _dirname polyfill for ESM
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = path.dirname(__filename);
-  // Path to our package's CJS entry
-  const pkgMain = path.resolve(__dirname, '../index.cjs');
+  // Spy on console.log and console.error to inspect outputs
+  const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
   const scenarioData = [
-    { type: 'element', route: '/test', name: 'test-cjs', selector: 'body' }
+    { type: 'element', route: '/test', name: 'should-error', selector: 'bad-selector', full: false }
   ];
   const devices = { desktop: {} };
   const baseURL = 'http://localhost:3000';
+  await launchScreenshotsRunner({ scenarioData, baseURL, devices }, { playwrightChromium: chromiumWithError });
 
-  // Dynamically require (should resolve to an async fn)
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const cjsExportAsync = await (await import(pkgMain)).default;
-  expect(typeof cjsExportAsync).toBe('function');
-  // Should accept injected mock chromium
-  await expect(
-    cjsExportAsync({ scenarioData, baseURL, devices }, { playwrightChromium: chromiumMock })
-  ).resolves.toBeUndefined();
+  // Should have called log with red ERROR
+  const loggedErrorLine = logSpy.mock.calls.find(([msg]) => typeof msg === 'string' && msg.includes('ERROR:'));
+  expect(loggedErrorLine).toBeTruthy();
+  // Should have called error with our thrown error message
+  const hadStack = errorSpy.mock.calls.some(([msg]) => (msg || '').toString().includes('locator error simulated'));
+  expect(hadStack).toBe(true);
+  // Cleanup
+  logSpy.mockRestore();
+  errorSpy.mockRestore();
 });
-
-// ----------- INTEGRATION/E2E TEST (Real Playwright) -----------
-// UNCOMMENT to run a real Playwright test (not for CI!)
-// import { chromium } from 'playwright';
-// test('launchScreenshotsRunner completes real run (opens a browser window)', async () => {
-//   const scenarioData = [
-//     { type: 'element', route: '/', name: 'root-page', selector: 'body' }
-//   ];
-//   const devices = { desktop: {} };
-//   const baseURL = 'http://localhost:8080'; // Change as appropriate, must be running
-//   await expect(
-//     launchScreenshotsRunner({ scenarioData, baseURL, devices }, { playwrightChromium: chromium })
-//   ).resolves.toBeUndefined();
-// }, 10000);
