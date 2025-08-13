@@ -34,12 +34,6 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
 
   await ensureAssetsLoaded(page);
 
-  // cleanup hook
-  if (scn.cleanup) {
-    try { await scn.cleanup(page, target, device); }
-    catch (err) { throw new Error(`[element type] 'cleanup' threw: ${err}`); }
-  }
-
   logShot(device, shotNum, scn.name);
 
   if (scn.full) {
@@ -49,6 +43,12 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
     });
   } else {
     await target.screenshot({ path: filename, animations: 'disabled' });
+  }
+
+  // cleanup hook – must happen after scrolling/loading/screenshots
+  if (scn.cleanup) {
+    try { await scn.cleanup(page, target, device); }
+    catch (err) { throw new Error(`[element type] 'cleanup' threw: ${err}`); }
   }
 
   return shotNum;

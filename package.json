@@ -10,7 +10,7 @@
   },
   "types": "./index.d.ts",
   "scripts": {
-    "test": "vitest"
+    "test": "vitest run"
   },
   "keywords": [
     "screenshot",

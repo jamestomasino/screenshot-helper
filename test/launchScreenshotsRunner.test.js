@@ -1,5 +1,5 @@
 import { test, expect, vi } from 'vitest';
-import { launchScreenshotsRunner } from '../index.js';
+// NOTE: index.js is imported dynamically after mocks are registered
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -32,13 +32,14 @@ test('launchScreenshotsRunner works with minimal scenario config (mocked chromiu
   ];
   const devices = { desktop: {} };
   const baseURL = 'http://localhost:3000';
-
+  const { launchScreenshotsRunner } = await import('../index.js');
   await expect(
     launchScreenshotsRunner({ scenarioData, baseURL, devices }, { playwrightChromium: chromiumMock })
   ).resolves.toBeUndefined();
 });
 
 test('launchScreenshotsRunner catches and logs scenario errors (mocked chromium)', async () => {
+  const { launchScreenshotsRunner } = await import('../index.js');
   // Mock locator to throw in screenshot (simulates Playwright strict mode error)
   const chromiumWithError = {
     launch: async () => ({
@@ -80,4 +81,63 @@ test('launchScreenshotsRunner catches and logs scenario errors (mocked chromium)
   // Cleanup
   logSpy.mockRestore();
   errorSpy.mockRestore();
+});
+
+// ---- Special test to check ordering of cleanup relative to scroll/assets/screenshot ----
+// Patch utils for test ordering at top-level. Do not move inside test!
+const __callOrder = [];
+vi.mock('../runners/utils.js', () => ({
+  ensureAssetsLoaded: async () => { __callOrder.push('assetsLoaded'); },
+  scroll: async () => { __callOrder.push('scroll'); }
+}), { virtual: false });
+
+test('cleanup is called after assets loaded, scrolling, and just before screenshot (element/full scenario)', async () => {
+  __callOrder.length = 0; // reset
+
+  const chromiumSequenceMock = {
+    launch: async () => ({
+      newContext: async () => ({
+        newPage: async () => ({
+          waitForLoadState: async () => {},
+          evaluate: async () => {},
+          locator: () => ({
+            screenshot: async () => { __callOrder.push('screenshot'); },
+            boundingBox: async () => ({ width: 100, height: 200 }),
+            scrollIntoViewIfNeeded: async () => {},
+            evaluate: async () => ({ overX: true, overY: true }), // force scrolling path
+          }),
+          goto: async () => {},
+          viewportSize: () => ({ width: 800, height: 600 }),
+          setViewportSize: async () => {},
+        }),
+        close: async () => {},
+      }),
+      close: async () => {},
+    })
+  };
+  const scenarioData = [
+    {
+      type: 'element',
+      route: '/test-seq',
+      name: 'call-order-scn',
+      selector: 'body',
+      full: true,
+      before: async () => { __callOrder.push('before'); },
+      cleanup: async () => { __callOrder.push('cleanup'); }
+    }
+  ];
+  const devices = { desktop: {} };
+  const baseURL = 'http://localhost:3000';
+  // Need to import after the mocks are specified
+  const mod = await import('../index.js');
+  await expect(
+    mod.launchScreenshotsRunner({ scenarioData, baseURL, devices }, { playwrightChromium: chromiumSequenceMock })
+  ).resolves.toBeUndefined();
+  // Call order: before → scroll → assetsLoaded → screenshot → cleanup
+  expect(__callOrder).toEqual([
+    'before',
+    'assetsLoaded',
+    'screenshot',
+    'cleanup'
+  ]);
 });

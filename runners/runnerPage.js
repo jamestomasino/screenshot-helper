@@ -20,6 +20,10 @@ export default async function runPageScenario({ page, baseURL, scn, device, filt
   if (beforeResult === false) return shotNum;
   if (scn.full) { await scroll(page); }
   await ensureAssetsLoaded(page);
+  console.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(scn.name));
+  await page.screenshot({ path: filename, fullPage: !!scn.full });
+
+  // cleanup hook – must happen after scrolling/loading/screenshots
   if (scn.cleanup) {
     try {
       await scn.cleanup(page, undefined, device);
@@ -27,7 +31,5 @@ export default async function runPageScenario({ page, baseURL, scn, device, filt
       throw new Error(`[page type] 'cleanup' threw: ${err}`);
     }
   }
-  console.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(scn.name));
-  await page.screenshot({ path: filename, fullPage: !!scn.full });
   return shotNum;
 }
