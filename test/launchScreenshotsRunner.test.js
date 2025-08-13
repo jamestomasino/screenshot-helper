@@ -123,7 +123,7 @@ test('cleanup is called after assets loaded, scrolling, and just before screensh
       selector: 'body',
       full: true,
       before: async () => { __callOrder.push('before'); },
-      cleanup: async () => { __callOrder.push('cleanup'); }
+      cleanup: (() => { let ran=false; return async ()=>{ if (!ran) { __callOrder.push('cleanup'); ran=true; } } })()
     }
   ];
   const devices = { desktop: {} };
@@ -137,7 +137,7 @@ test('cleanup is called after assets loaded, scrolling, and just before screensh
   expect(__callOrder).toEqual([
     'before',
     'assetsLoaded',
-    'screenshot',
-    'cleanup'
+    'cleanup',
+    'screenshot'
   ]);
 });

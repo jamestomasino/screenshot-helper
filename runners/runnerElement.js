@@ -37,18 +37,24 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
   logShot(device, shotNum, scn.name);
 
   if (scn.full) {
+    let cleanupDone = false;
+    const preScreenshot = scn.cleanup ? async () => {
+      if (cleanupDone) return;
+      cleanupDone = true;
+      try { await scn.cleanup(page, target, device); }
+      catch (err) { throw new Error(`[element type] 'cleanup' threw: ${err}`); }
+    } : undefined;
     await screenshotElementSimple(page, scn.selector, filename, {
       directions: 'both',
-      preferScaleFallback: !!scn.preferScaleFallback
+      preferScaleFallback: !!scn.preferScaleFallback,
+      preScreenshot
     });
   } else {
+    if (scn.cleanup) {
+      try { await scn.cleanup(page, target, device); }
+      catch (err) { throw new Error(`[element type] 'cleanup' threw: ${err}`); }
+    }
     await target.screenshot({ path: filename, animations: 'disabled' });
-  }
-
-  // cleanup hook – must happen after scrolling/loading/screenshots
-  if (scn.cleanup) {
-    try { await scn.cleanup(page, target, device); }
-    catch (err) { throw new Error(`[element type] 'cleanup' threw: ${err}`); }
   }
 
   return shotNum;
@@ -57,7 +63,7 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
 // -------------------------
 // Full-element, single-shot helper
 // -------------------------
-async function screenshotElementSimple(page, selector, outPath, { directions = 'both', preferScaleFallback = false } = {}) {
+async function screenshotElementSimple(page, selector, outPath, { directions = 'both', preferScaleFallback = false, preScreenshot } = {}) {
   const el = page.locator(selector);
   await el.scrollIntoViewIfNeeded();
 
@@ -68,13 +74,22 @@ async function screenshotElementSimple(page, selector, outPath, { directions = '
   const needX = (directions === 'x' || directions === 'both') && overX;
   const needY = (directions === 'y' || directions === 'both') && overY;
 
+  let ranPreScreenshot = false;
+  async function maybeCallPreScreenshot() {
+    if (preScreenshot && !ranPreScreenshot) {
+      ranPreScreenshot = true;
+      await preScreenshot();
+    }
+  }
+
   if (!needX && !needY) {
+    await maybeCallPreScreenshot();
     await el.screenshot({ path: outPath, animations: 'disabled' });
     return;
   }
 
   if (preferScaleFallback) {
-    await screenshotByScaling(page, selector, outPath);
+    await screenshotByScaling(page, selector, outPath, maybeCallPreScreenshot);
     return;
   }
 
@@ -90,10 +105,11 @@ async function screenshotElementSimple(page, selector, outPath, { directions = '
 
   if (!expanded || !fits) {
     await restoreExpandedStyles(page);
-    await screenshotByScaling(page, selector, outPath);
+    await screenshotByScaling(page, selector, outPath, maybeCallPreScreenshot);
     return;
   }
 
+  await maybeCallPreScreenshot();
   await el.screenshot({ path: outPath, animations: 'disabled' });
   await restoreExpandedStyles(page);
 }
@@ -187,7 +203,15 @@ async function restoreExpandedStyles(page) {
 }
 
 // Fallback: scale the page so the element fits the current viewport (preserves breakpoints)
-async function screenshotByScaling(page, selector, outPath) {
+async function screenshotByScaling(page, selector, outPath, preScreenshot) {
+  let ranPreScreenshot = false;
+  async function maybeCallPreScreenshot() {
+    if (preScreenshot && !ranPreScreenshot) {
+      ranPreScreenshot = true;
+      await preScreenshot();
+    }
+  }
+
   const el = page.locator(selector);
   await el.scrollIntoViewIfNeeded();
 
@@ -198,6 +222,7 @@ async function screenshotByScaling(page, selector, outPath) {
   const scale = Math.min(1, vp.width / sw, vp.height / sh);
 
   if (scale >= 0.999) {
+    await maybeCallPreScreenshot();
     await el.screenshot({ path: outPath, animations: 'disabled' });
     return;
   }
@@ -227,6 +252,7 @@ async function screenshotByScaling(page, selector, outPath) {
 
   await settleNextFrame(page, 2);
 
+  await maybeCallPreScreenshot();
   await el.screenshot({ path: outPath, animations: 'disabled' });
 
   await page.evaluate(() => {
