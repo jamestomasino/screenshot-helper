@@ -24,7 +24,7 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jamestomasino/screenshot-helper.git"
+    "url": "git+https://github.com/jamestomasino/screenshot-helper.git"
   },
   "bugs": {
     "url": "https://github.com/jamestomasino/screenshot-helper/issues"
