@@ -4,6 +4,7 @@ import { ensureAssetsLoaded, scroll } from '../runners/utils.js';
 
 const TEST_PORT = 54322;
 const BASE_URL = `http://localhost:${TEST_PORT}`;
+const skipPlaywright = ['1', 'true'].includes((process.env.SKIP_PLAYWRIGHT_TESTS || '').toLowerCase()) || ['true', '1'].includes((process.env.CI || '').toLowerCase());
 const IMG = '<img id="imgslow" src="/slow.png" width=100 height=50>'; // Triggers slowly
 const FAST_IMG = '<img id="imgfast" src="/fast.png" width=100 height=50>';
 const TEST_HTML = (extra = '') => `
@@ -12,7 +13,9 @@ const TEST_HTML = (extra = '') => `
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-describe('utils.js integration (Playwright)', () => {
+const describeFn = skipPlaywright ? describe.skip : describe;
+
+describeFn('utils.js integration (Playwright)', () => {
   let server;
   beforeAll(done => {
     server = http.createServer((req, res) => {
