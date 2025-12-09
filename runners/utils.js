@@ -1,5 +1,19 @@
-export async function ensureAssetsLoaded(page) {
-  await page.waitForLoadState('networkidle');
+export async function waitForPageLoad(page, { loadTimeoutMs } = {}) {
+  try {
+    const opts = loadTimeoutMs ? { timeout: loadTimeoutMs } : undefined;
+    await page.waitForLoadState('networkidle', opts);
+    return { timedOut: false };
+  } catch (err) {
+    if (err && err.name === 'TimeoutError') return { timedOut: true, error: err };
+    throw err;
+  }
+}
+
+export async function ensureAssetsLoaded(page, { waitForLoad = true, loadTimeoutMs } = {}) {
+  if (waitForLoad) {
+    const opts = loadTimeoutMs ? { timeout: loadTimeoutMs } : undefined;
+    await page.waitForLoadState('networkidle', opts);
+  }
   await page.evaluate(async () => {
     const imgs = Array.from(document.images);
     await Promise.all(imgs.map(img => {

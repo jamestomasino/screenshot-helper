@@ -66,6 +66,8 @@ const devices = {
   desktop: { viewport: { width: 1280, height: 1080 }, deviceScaleFactor: 2 },
   mobile: { viewport: { width: 375, height: 812 }, deviceScaleFactor: 2 }
 };
+const loadTimeoutMs = 8000; // optional: max wait for networkidle before acting
+const loadTimeoutAction = 'continue'; // or 'skip' to abandon the scenario
 
 const scenarioData = [
   {
@@ -112,7 +114,7 @@ const httpCredentials = {
   password: 'yourPassword',
 };
 
-launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, httpCredentials });
+launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, httpCredentials, loadTimeoutMs, loadTimeoutAction });
 ```
 
 ---
@@ -170,6 +172,10 @@ You can filter which scenarios are run by passing a substring as a CLI argument:
 node screenshots.js homepage
 ```
 Will only run scenarios whose `name` includes "homepage".
+
+### Load timeouts
+- `loadTimeoutMs` caps how long the runner waits for a page to reach `networkidle` before proceeding.
+- `loadTimeoutAction` controls behavior on timeout: `'skip'` stops the scenario immediately, `'continue'` runs hooks/screenshot even if the page never reached `networkidle`.
 
 ---
 

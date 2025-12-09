@@ -4,7 +4,7 @@ import runFunctionScenario from './runners/runnerFunction.js';
 import runElementScenario from './runners/runnerElement.js';
 import runPageScenario from './runners/runnerPage.js';
 
-function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, filter }) {
+function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, filter, loadTimeoutMs, loadTimeoutAction }) {
   return async function () {
     const context = await browser.newContext(contextOptions);
     const page = await context.newPage();
@@ -13,13 +13,13 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
     async function runScenario(scn) {
       switch (scn.type) {
         case 'function':
-          await runFunctionScenario({ page, baseURL, scn, device, filter });
+          await runFunctionScenario({ page, baseURL, scn, device, filter, loadTimeoutMs, loadTimeoutAction });
           break;
         case 'element':
-          shotNum = await runElementScenario({ page, baseURL, scn, device, filter, shotNum });
+          shotNum = await runElementScenario({ page, baseURL, scn, device, filter, shotNum, loadTimeoutMs, loadTimeoutAction });
           break;
         default:
-          shotNum = await runPageScenario({ page, baseURL, scn, device, filter, shotNum });
+          shotNum = await runPageScenario({ page, baseURL, scn, device, filter, shotNum, loadTimeoutMs, loadTimeoutAction });
           break;
       }
     }
@@ -44,14 +44,14 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
   };
 }
 
-export async function launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, httpCredentials }, { playwrightChromium } = {}) {
+export async function launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, httpCredentials, loadTimeoutMs, loadTimeoutAction }, { playwrightChromium } = {}) {
   const chromium = playwrightChromium || chromiumDefault;
   const browser = await chromium.launch();
   try {
     await Promise.all(
       Object.entries(devices).map(([device, contextOptionsRaw]) => {
         const contextOptions = httpCredentials ? { ...contextOptionsRaw, httpCredentials } : contextOptionsRaw;
-        return makeRunner({ browser, baseURL, scenarioData, device, contextOptions, filter })();
+        return makeRunner({ browser, baseURL, scenarioData, device, contextOptions, filter, loadTimeoutMs, loadTimeoutAction })();
       })
     );
   } finally {

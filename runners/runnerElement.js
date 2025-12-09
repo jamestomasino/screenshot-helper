@@ -1,4 +1,4 @@
-import { ensureAssetsLoaded } from './utils.js';
+import { ensureAssetsLoaded, waitForPageLoad } from './utils.js';
 import chalk from 'chalk';
 
 // -------------------------
@@ -7,13 +7,18 @@ const logShot = (device, shotNum, name) =>
 
 const waitTwoFrames = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 
-export default async function runElementScenario({ page, baseURL, scn, device, filter, shotNum }) {
+export default async function runElementScenario({ page, baseURL, scn, device, filter, shotNum, loadTimeoutMs, loadTimeoutAction }) {
   shotNum++;
+  const onTimeout = loadTimeoutAction === 'skip' ? 'skip' : 'continue';
   const filename = `screenshots/${device}-${String(shotNum).padStart(3, '0')}-${scn.name}.png`;
   if (filter && !filename.includes(filter)) return shotNum;
 
   await page.goto(baseURL + scn.route);
-  await page.waitForLoadState('networkidle');
+  const loadResult = await waitForPageLoad(page, { loadTimeoutMs });
+  if (loadResult.timedOut) {
+    console.log(chalk.yellow.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(`load timeout -> ${onTimeout}`), chalk.yellow(scn.name));
+    if (onTimeout === 'skip') return shotNum;
+  }
 
   const target = page.locator(scn.selector);
   if (scn.before) {
@@ -21,7 +26,7 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
     catch (err) { throw new Error(`[element type] 'before' threw: ${err}`); }
   }
 
-  await ensureAssetsLoaded(page);
+  await ensureAssetsLoaded(page, { waitForLoad: !loadResult.timedOut, loadTimeoutMs });
   logShot(device, shotNum, scn.name);
 
   // --------- FULL element branch ---------
