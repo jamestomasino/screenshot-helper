@@ -25,4 +25,4 @@ jobs:
       - run: npm test
         env:
           SKIP_PLAYWRIGHT_TESTS: "1"
-      - run: npm publish --access public
+      - run: npm publish
