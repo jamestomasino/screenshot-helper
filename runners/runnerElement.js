@@ -7,30 +7,49 @@ const logShot = (device, shotNum, name) =>
 
 const waitTwoFrames = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 
-export default async function runElementScenario({ page, baseURL, scn, device, filter, shotNum, loadTimeoutMs, loadTimeoutAction }) {
+export default async function runElementScenario({ page, baseURL, scn, device, filter, shotNum, loadTimeoutMs, loadTimeoutAction, debugLog = () => {} }) {
   shotNum++;
   const onTimeout = loadTimeoutAction === 'skip' ? 'skip' : 'continue';
   const filename = `screenshots/${device}-${String(shotNum).padStart(3, '0')}-${scn.name}.png`;
   if (filter && !filename.includes(filter)) return shotNum;
 
+  debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> goto', baseURL + scn.route);
   await page.goto(baseURL + scn.route);
+  debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> waiting for load');
   const loadResult = await waitForPageLoad(page, { loadTimeoutMs });
+  debugLog(`[${device}]`, '#', shotNum, '-', scn.name, loadResult.timedOut ? 'load timed out' : 'load complete');
   if (loadResult.timedOut) {
     console.log(chalk.yellow.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(`load timeout -> ${onTimeout}`), chalk.yellow(scn.name));
     if (onTimeout === 'skip') return shotNum;
   }
 
   const target = page.locator(scn.selector);
+  debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> selector', scn.selector);
   if (scn.before) {
-    try { if (await scn.before(page, target, device) === false) return shotNum; }
+    try {
+      debugLog(`[${device}]`, '#', shotNum, '-', scn.name, "-> before() start");
+      if (await scn.before(page, target, device) === false) return shotNum;
+      debugLog(`[${device}]`, '#', shotNum, '-', scn.name, "-> before() done");
+    }
     catch (err) { throw new Error(`[element type] 'before' threw: ${err}`); }
   }
 
-  await ensureAssetsLoaded(page, { waitForLoad: !loadResult.timedOut, loadTimeoutMs });
+  debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> ensureAssetsLoaded');
+  try {
+    await ensureAssetsLoaded(page, { waitForLoad: !loadResult.timedOut, loadTimeoutMs });
+  } catch (err) {
+    if (err && err.name === 'TimeoutError') {
+      console.log(chalk.yellow.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(`assets timeout -> ${onTimeout}`), chalk.yellow(scn.name));
+      if (onTimeout === 'skip') return shotNum;
+    } else {
+      throw err;
+    }
+  }
   logShot(device, shotNum, scn.name);
 
   // --------- FULL element branch ---------
   if (scn.full) {
+    debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> full element path start');
     await target.scrollIntoViewIfNeeded();
     const { overX, overY } = await target.evaluate(n => ({
       overX: n.scrollWidth > n.clientWidth,
@@ -109,6 +128,7 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
       });
       restored = true;
     }
+    debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> expandToNaturalSize');
     await expandToNaturalSize(target, needX, needY);
     await waitTwoFrames(page);
     const fits = await target.evaluate((node, { needX, needY }) => {
@@ -118,6 +138,7 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
       return wOk && hOk;
     }, { needX, needY });
     if (!fits) {
+      debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> fallback scale path');
       await restoreExpandedStyles();
       // fallback: scale page
       const vp = page.viewportSize();
@@ -139,7 +160,12 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
         wrap.style.width = (100 / s) + '%';
       }, scale);
       await waitTwoFrames(page);
-      if (scn.cleanup) await scn.cleanup(page, target, device);
+      if (scn.cleanup) {
+        debugLog(`[${device}]`, '#', shotNum, '-', scn.name, "-> cleanup() start");
+        await scn.cleanup(page, target, device);
+        debugLog(`[${device}]`, '#', shotNum, '-', scn.name, "-> cleanup() done");
+      }
+      debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> screenshot (scaled) to', filename);
       await target.screenshot({ path: filename, animations: 'disabled' });
       await page.evaluate(() => {
         const html = document.documentElement, body = document.body, wrap = document.getElementById('__sswrap__');
@@ -151,11 +177,21 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
       });
       return shotNum;
     }
-    if (scn.cleanup) await scn.cleanup(page, target, device);
+    if (scn.cleanup) {
+      debugLog(`[${device}]`, '#', shotNum, '-', scn.name, "-> cleanup() start");
+      await scn.cleanup(page, target, device);
+      debugLog(`[${device}]`, '#', shotNum, '-', scn.name, "-> cleanup() done");
+    }
+    debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> screenshot to', filename);
     await target.screenshot({ path: filename, animations: 'disabled' });
     await restoreExpandedStyles();
   } else {
-    if (scn.cleanup) await scn.cleanup(page, target, device);
+    if (scn.cleanup) {
+      debugLog(`[${device}]`, '#', shotNum, '-', scn.name, "-> cleanup() start");
+      await scn.cleanup(page, target, device);
+      debugLog(`[${device}]`, '#', shotNum, '-', scn.name, "-> cleanup() done");
+    }
+    debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> screenshot to', filename);
     await target.screenshot({ path: filename, animations: 'disabled' });
   }
   return shotNum;

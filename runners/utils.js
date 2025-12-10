@@ -14,14 +14,28 @@ export async function ensureAssetsLoaded(page, { waitForLoad = true, loadTimeout
     const opts = loadTimeoutMs ? { timeout: loadTimeoutMs } : undefined;
     await page.waitForLoadState('networkidle', opts);
   }
-  await page.evaluate(async () => {
-    const imgs = Array.from(document.images);
-    await Promise.all(imgs.map(img => {
-      if (img.complete) return;
-      return new Promise(res => { img.onload = img.onerror = res; });
-    }));
-    if ('fonts' in document) await document.fonts.ready;
-  });
+  await page.evaluate(async (timeoutMs) => {
+    const waitForAssets = async () => {
+      const imgs = Array.from(document.images);
+      await Promise.all(imgs.map(img => {
+        if (img.complete) return;
+        return new Promise(res => { img.onload = img.onerror = res; });
+      }));
+      if ('fonts' in document) await document.fonts.ready;
+    };
+    if (!timeoutMs) {
+      await waitForAssets();
+      return;
+    }
+    await Promise.race([
+      waitForAssets(),
+      new Promise((_, reject) => {
+        const err = new Error('assets load timeout');
+        err.name = 'TimeoutError';
+        setTimeout(() => reject(err), timeoutMs);
+      })
+    ]);
+  }, loadTimeoutMs);
 }
 
 export async function scroll(page) {

@@ -31,6 +31,10 @@ describeFn('utils.js integration (Playwright)', () => {
         res.end(Buffer.alloc(100));
         return;
       }
+      if (req.url === '/never.png') {
+        // Intentionally never respond to simulate a hanging asset
+        return;
+      }
       res.writeHead(200, {'Content-Type': 'text/html'});
       res.end(TEST_HTML(IMG + FAST_IMG));
     }).listen(TEST_PORT, done);
@@ -56,6 +60,14 @@ describeFn('utils.js integration (Playwright)', () => {
     await ensureAssetsLoaded(page);
     const t1 = Date.now();
     expect(t1 - t0).toBeLessThanOrEqual(800); // Should complete quickly in VM
+    await browser.close();
+  }, 10000);
+
+  it('ensureAssetsLoaded respects timeout when assets hang', async () => {
+    const browser = await chromium.launch();
+    const page = await browser.newPage();
+    await page.setContent(`<html><body><img src="${BASE_URL}/never.png" width="10" height="10" /></body></html>`, { waitUntil: 'domcontentloaded' });
+    await expect(ensureAssetsLoaded(page, { waitForLoad: false, loadTimeoutMs: 300 })).rejects.toThrow(/assets load timeout/i);
     await browser.close();
   }, 10000);
 

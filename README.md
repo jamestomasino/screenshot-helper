@@ -68,6 +68,7 @@ const devices = {
 };
 const loadTimeoutMs = 8000; // optional: max wait for networkidle before acting
 const loadTimeoutAction = 'continue'; // or 'skip' to abandon the scenario
+const debug = true; // optional: verbose logging for stuck runs
 
 const scenarioData = [
   {
@@ -114,7 +115,7 @@ const httpCredentials = {
   password: 'yourPassword',
 };
 
-launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, httpCredentials, loadTimeoutMs, loadTimeoutAction });
+launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, httpCredentials, loadTimeoutMs, loadTimeoutAction, debug });
 ```
 
 ---
@@ -176,6 +177,10 @@ Will only run scenarios whose `name` includes "homepage".
 ### Load timeouts
 - `loadTimeoutMs` caps how long the runner waits for a page to reach `networkidle` before proceeding.
 - `loadTimeoutAction` controls behavior on timeout: `'skip'` stops the scenario immediately, `'continue'` runs hooks/screenshot even if the page never reached `networkidle`.
+- The same `loadTimeoutMs` is reused for asset waits (`ensureAssetsLoaded`), so hanging images/fonts won’t stall forever.
+
+### Debug logging
+- Pass `debug: true` to `launchScreenshotsRunner` to print step-by-step progress (navigation, load waits, hooks, and screenshot points) for each scenario/device. Useful when runs hang or stall.
 
 ---
 

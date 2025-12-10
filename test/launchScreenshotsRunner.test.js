@@ -87,8 +87,17 @@ test('launchScreenshotsRunner catches and logs scenario errors (mocked chromium)
 // Patch utils for test ordering at top-level. Do not move inside test!
 const __callOrder = [];
 const __loadResult = { timedOut: false };
+const __assetTimeout = { throwTimeout: false };
 vi.mock('../runners/utils.js', () => ({
-  ensureAssetsLoaded: async () => { __callOrder.push('assetsLoaded'); },
+  ensureAssetsLoaded: async () => {
+    if (__assetTimeout.throwTimeout) {
+      __callOrder.push('assetsTimeout');
+      const err = new Error('assets timed out');
+      err.name = 'TimeoutError';
+      throw err;
+    }
+    __callOrder.push('assetsLoaded');
+  },
   scroll: async () => { __callOrder.push('scroll'); },
   waitForPageLoad: async () => __loadResult
 }), { virtual: false });
@@ -97,6 +106,7 @@ beforeEach(() => {
   __callOrder.length = 0;
   __loadResult.timedOut = false;
   delete __loadResult.error;
+    __assetTimeout.throwTimeout = false;
 });
 
 test('cleanup is called after assets loaded, scrolling, and just before screenshot (element/full scenario)', async () => {
@@ -294,6 +304,66 @@ test('element load timeout with continue still runs hooks and screenshot', async
   expect(beforeSpy).toHaveBeenCalledTimes(1);
   expect(cleanupSpy).toHaveBeenCalledTimes(1);
   expect(__callOrder).toEqual(['before', 'assetsLoaded', 'cleanup', 'screenshot']);
+});
+
+test('asset timeout with skip exits before cleanup/screenshot', async () => {
+  __assetTimeout.throwTimeout = true;
+  const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  const chromiumMock = {
+    launch: async () => ({
+      newContext: async () => ({
+        newPage: async () => ({
+          goto: async () => {},
+          screenshot: async () => { __callOrder.push('screenshot'); },
+          locator: () => ({ screenshot: async () => { __callOrder.push('screenshot'); } }),
+          viewportSize: () => ({ width: 800, height: 600 }),
+          setViewportSize: async () => {},
+        }),
+        close: async () => {},
+      }),
+      close: async () => {},
+    })
+  };
+  const scenarioData = [
+    { type: 'page', route: '/asset-timeout', name: 'asset-skip', before: () => { __callOrder.push('before'); } }
+  ];
+  const devices = { desktop: {} };
+  const baseURL = 'http://localhost:3000';
+  const mod = await import('../index.js');
+  await mod.launchScreenshotsRunner({ scenarioData, baseURL, devices, loadTimeoutAction: 'skip' }, { playwrightChromium: chromiumMock });
+
+  expect(__callOrder).toEqual(['before', 'assetsTimeout']);
+  const logLine = logSpy.mock.calls.find(c => c.some(v => typeof v === 'string' && v.includes('assets timeout -> skip')));
+  expect(logLine).toBeTruthy();
+  logSpy.mockRestore();
+});
+
+test('asset timeout with continue still runs cleanup and screenshot', async () => {
+  __assetTimeout.throwTimeout = true;
+  const chromiumMock = {
+    launch: async () => ({
+      newContext: async () => ({
+        newPage: async () => ({
+          goto: async () => {},
+          screenshot: async () => { __callOrder.push('screenshot'); },
+          locator: () => ({ screenshot: async () => { __callOrder.push('screenshot'); } }),
+          viewportSize: () => ({ width: 800, height: 600 }),
+          setViewportSize: async () => {},
+        }),
+        close: async () => {},
+      }),
+      close: async () => {},
+    })
+  };
+  const scenarioData = [
+    { type: 'page', route: '/asset-timeout', name: 'asset-continue', before: () => { __callOrder.push('before'); }, cleanup: () => { __callOrder.push('cleanup'); } }
+  ];
+  const devices = { desktop: {} };
+  const baseURL = 'http://localhost:3000';
+  const mod = await import('../index.js');
+  await mod.launchScreenshotsRunner({ scenarioData, baseURL, devices, loadTimeoutAction: 'continue' }, { playwrightChromium: chromiumMock });
+
+  expect(__callOrder).toEqual(['before', 'assetsTimeout', 'cleanup', 'screenshot']);
 });
 
 test('function load timeout honors skip', async () => {
