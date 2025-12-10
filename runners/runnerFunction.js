@@ -1,6 +1,13 @@
 import { ensureAssetsLoaded, waitForPageLoad } from './utils.js';
 import chalk from 'chalk';
 
+const isAssetsTimeout = (err) => {
+  if (!err) return false;
+  if (err.name === 'TimeoutError') return true;
+  const msg = err.message || String(err);
+  return /assets load timeout/i.test(msg) || /TimeoutError/i.test(msg);
+};
+
 export default async function runFunctionScenario({ page, baseURL, scn, device, filter, loadTimeoutMs, loadTimeoutAction, debugLog = () => {} }) {
   const scenarioName = scn.name;
 
@@ -31,7 +38,7 @@ export default async function runFunctionScenario({ page, baseURL, scn, device, 
   try {
     await ensureAssetsLoaded(page, { waitForLoad: !loadResult.timedOut, loadTimeoutMs });
   } catch (err) {
-    if (err && err.name === 'TimeoutError') {
+    if (isAssetsTimeout(err)) {
       console.log(chalk.yellow.bold(`[${device}]`), chalk.magenta('<function>'), chalk.white('-'), chalk.yellow(`assets timeout -> ${onTimeout}`), chalk.yellow(scenarioName));
       if (onTimeout === 'skip') return;
     } else {

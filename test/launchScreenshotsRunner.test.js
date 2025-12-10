@@ -92,8 +92,8 @@ vi.mock('../runners/utils.js', () => ({
   ensureAssetsLoaded: async () => {
     if (__assetTimeout.throwTimeout) {
       __callOrder.push('assetsTimeout');
-      const err = new Error('assets timed out');
-      err.name = 'TimeoutError';
+      const err = new Error('TimeoutError: assets load timeout');
+      err.name = 'Error';
       throw err;
     }
     __callOrder.push('assetsLoaded');
