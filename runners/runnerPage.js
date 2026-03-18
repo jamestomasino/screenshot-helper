@@ -1,4 +1,4 @@
-import { buildScreenshotPath, ensureAssetsLoaded, scroll, waitForPageLoad } from './utils.js';
+import { ensureAssetsLoaded, scroll, waitForPageLoad } from './utils.js';
 import chalk from 'chalk';
 
 const isAssetsTimeout = (err) => {
@@ -8,21 +8,30 @@ const isAssetsTimeout = (err) => {
   return /assets load timeout/i.test(msg) || /TimeoutError/i.test(msg);
 };
 
-export default async function runPageScenario({ page, baseURL, scn, device, filter, shotNum, outputDir, loadTimeoutMs, loadTimeoutAction, debugLog = () => {} }) {
+export default async function runPageScenario({ page, baseURL, scn, device, filter, shotNum, outputDir, outputPathBuilder, loadTimeoutMs, loadTimeoutAction, debugLog = () => {}, logger = console }) {
   let filename;
   let beforeResult = true;
   const onTimeout = loadTimeoutAction === 'skip' ? 'skip' : 'continue';
   shotNum++;
-  filename = buildScreenshotPath(outputDir, device, shotNum, scn.name);
-  if (filter && !filename.includes(filter)) return shotNum;
+  filename = outputPathBuilder({
+    outputDir,
+    device,
+    shotNum,
+    scenarioName: scn.name,
+    scenario: scn,
+    type: scn.type || 'page',
+  });
+  if (filter && !filename.includes(filter)) {
+    return { shotNum, status: 'skipped', filename, reason: 'filter' };
+  }
   debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> goto', baseURL + scn.route);
   await page.goto(baseURL + scn.route);
   debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> waiting for load');
   const loadResult = await waitForPageLoad(page, { loadTimeoutMs });
   debugLog(`[${device}]`, '#', shotNum, '-', scn.name, loadResult.timedOut ? 'load timed out' : 'load complete');
   if (loadResult.timedOut) {
-    console.log(chalk.yellow.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(`load timeout -> ${onTimeout}`), chalk.yellow(scn.name));
-    if (onTimeout === 'skip') return shotNum;
+    logger.log(chalk.yellow.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(`load timeout -> ${onTimeout}`), chalk.yellow(scn.name));
+    if (onTimeout === 'skip') return { shotNum, status: 'skipped', filename, reason: 'load-timeout' };
   }
   if (scn.before) {
     try {
@@ -34,7 +43,7 @@ export default async function runPageScenario({ page, baseURL, scn, device, filt
       throw new Error(`[page type] 'before' threw: ${err}`);
     }
   }
-  if (beforeResult === false) return shotNum;
+  if (beforeResult === false) return { shotNum, status: 'skipped', filename, reason: 'before-returned-false' };
   if (scn.full) {
     debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> scrolling full page');
     await scroll(page);
@@ -44,8 +53,8 @@ export default async function runPageScenario({ page, baseURL, scn, device, filt
     await ensureAssetsLoaded(page, { waitForLoad: !loadResult.timedOut, loadTimeoutMs });
   } catch (err) {
     if (isAssetsTimeout(err)) {
-      console.log(chalk.yellow.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(`assets timeout -> ${onTimeout}`), chalk.yellow(scn.name));
-      if (onTimeout === 'skip') return shotNum;
+      logger.log(chalk.yellow.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(`assets timeout -> ${onTimeout}`), chalk.yellow(scn.name));
+      if (onTimeout === 'skip') return { shotNum, status: 'skipped', filename, reason: 'assets-timeout' };
     } else {
       throw err;
     }
@@ -62,9 +71,9 @@ export default async function runPageScenario({ page, baseURL, scn, device, filt
     }
   }
 
-  console.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(scn.name));
+  logger.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(scn.name));
   debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> taking screenshot to', filename);
   await page.screenshot({ path: filename, fullPage: !!scn.full });
 
-  return shotNum;
+  return { shotNum, status: 'succeeded', filename };
 }

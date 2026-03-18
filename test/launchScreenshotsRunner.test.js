@@ -35,7 +35,9 @@ test('launchScreenshotsRunner works with minimal scenario config (mocked chromiu
   const { launchScreenshotsRunner } = await import('../index.js');
   await expect(
     launchScreenshotsRunner({ scenarioData, baseURL, devices }, { playwrightChromium: chromiumMock })
-  ).resolves.toBeUndefined();
+  ).resolves.toMatchObject({
+    counts: { started: 1, succeeded: 1, skipped: 0, failed: 0 }
+  });
 });
 
 test('launchScreenshotsRunner respects custom outputDir for page screenshots', async () => {
@@ -112,6 +114,126 @@ test('launchScreenshotsRunner respects custom outputDir for element screenshots'
 
   expect(screenshotPath).toContain('another-output');
   expect(screenshotPath).toContain('mobile-001-panel.png');
+});
+
+test('filter matching still works with custom outputDir', async () => {
+  let screenshotCalls = 0;
+  const chromiumWithCapture = {
+    launch: async () => ({
+      newContext: async () => ({
+        newPage: async () => ({
+          waitForLoadState: async () => {},
+          evaluate: async () => {},
+          goto: async () => {},
+          screenshot: async () => { screenshotCalls += 1; },
+          locator: () => ({ screenshot: async () => { screenshotCalls += 1; } }),
+          viewportSize: () => ({ width: 800, height: 600 }),
+          setViewportSize: async () => {},
+        }),
+        close: async () => {},
+      }),
+      close: async () => {},
+    }),
+  };
+
+  const scenarioData = [
+    { route: '/a', name: 'keep-this' },
+    { route: '/b', name: 'skip-this' }
+  ];
+  const devices = { desktop: {} };
+  const baseURL = 'http://localhost:3000';
+  const { launchScreenshotsRunner } = await import('../index.js');
+
+  const summary = await launchScreenshotsRunner(
+    { scenarioData, baseURL, devices, outputDir: 'custom-output', filter: 'keep-this' },
+    { playwrightChromium: chromiumWithCapture }
+  );
+
+  expect(screenshotCalls).toBe(1);
+  expect(summary.counts.succeeded).toBe(1);
+  expect(summary.counts.skipped).toBe(1);
+});
+
+test('launchScreenshotsRunner supports custom outputPathBuilder', async () => {
+  let screenshotPath;
+  const chromiumWithCapture = {
+    launch: async () => ({
+      newContext: async () => ({
+        newPage: async () => ({
+          waitForLoadState: async () => {},
+          evaluate: async () => {},
+          goto: async () => {},
+          screenshot: async ({ path }) => {
+            screenshotPath = path;
+          },
+          locator: () => ({ screenshot: async () => {} }),
+          viewportSize: () => ({ width: 800, height: 600 }),
+          setViewportSize: async () => {},
+        }),
+        close: async () => {},
+      }),
+      close: async () => {},
+    }),
+  };
+
+  const scenarioData = [{ route: '/test', name: 'home' }];
+  const devices = { desktop: {} };
+  const baseURL = 'http://localhost:3000';
+  const { launchScreenshotsRunner } = await import('../index.js');
+
+  await launchScreenshotsRunner(
+    {
+      scenarioData,
+      baseURL,
+      devices,
+      outputDir: 'custom-output',
+      outputPathBuilder: ({ device, shotNum, scenarioName }) => `shots/${device}/${shotNum}-${scenarioName}.png`
+    },
+    { playwrightChromium: chromiumWithCapture }
+  );
+
+  expect(screenshotPath).toBe('shots/desktop/1-home.png');
+});
+
+test('launchScreenshotsRunner emits structured events and supports custom logger', async () => {
+  const events = [];
+  const logger = {
+    log: vi.fn(),
+    error: vi.fn(),
+  };
+  const chromiumWithCapture = {
+    launch: async () => ({
+      newContext: async () => ({
+        newPage: async () => ({
+          waitForLoadState: async () => {},
+          evaluate: async () => {},
+          goto: async () => {},
+          screenshot: async () => {},
+          locator: () => ({ screenshot: async () => {} }),
+          viewportSize: () => ({ width: 800, height: 600 }),
+          setViewportSize: async () => {},
+        }),
+        close: async () => {},
+      }),
+      close: async () => {},
+    }),
+  };
+
+  const scenarioData = [{ route: '/test', name: 'home' }];
+  const devices = { desktop: {} };
+  const baseURL = 'http://localhost:3000';
+  const { launchScreenshotsRunner } = await import('../index.js');
+
+  const summary = await launchScreenshotsRunner(
+    { scenarioData, baseURL, devices, onEvent: (event) => events.push(event), logger },
+    { playwrightChromium: chromiumWithCapture }
+  );
+
+  expect(events.map((event) => event.type)).toEqual(['scenario-started', 'scenario-succeeded']);
+  expect(events[1].filename).toContain('desktop-001-home.png');
+  expect(summary.devices.desktop.counts.succeeded).toBe(1);
+  expect(logger.log).toHaveBeenCalled();
+  expect(logger.error).not.toHaveBeenCalled();
 });
 
 test('launchScreenshotsRunner catches and logs scenario errors (mocked chromium)', async () => {
@@ -231,7 +353,9 @@ test('cleanup is called after assets loaded, scrolling, and just before screensh
   const mod = await import('../index.js');
   await expect(
     mod.launchScreenshotsRunner({ scenarioData, baseURL, devices }, { playwrightChromium: chromiumSequenceMock })
-  ).resolves.toBeUndefined();
+  ).resolves.toMatchObject({
+    counts: { started: 1, succeeded: 1, skipped: 0, failed: 0 }
+  });
   // Call order: before → scroll → assetsLoaded → screenshot → cleanup
   expect(__callOrder).toEqual([
     'before',
@@ -269,7 +393,9 @@ test('load timeout with skip exits before hooks', async () => {
 
   await expect(
     launchScreenshotsRunner({ scenarioData, baseURL, devices, loadTimeoutMs: 5, loadTimeoutAction: 'skip' }, { playwrightChromium: chromiumTimeoutMock })
-  ).resolves.toBeUndefined();
+  ).resolves.toMatchObject({
+    counts: { started: 1, succeeded: 0, skipped: 1, failed: 0 }
+  });
 
   expect(beforeSpy).not.toHaveBeenCalled();
   expect(__callOrder).toEqual([]);
@@ -303,7 +429,9 @@ test('load timeout with continue still runs hooks and screenshot', async () => {
 
   await expect(
     launchScreenshotsRunner({ scenarioData, baseURL, devices, loadTimeoutMs: 5, loadTimeoutAction: 'continue' }, { playwrightChromium: chromiumTimeoutMock })
-  ).resolves.toBeUndefined();
+  ).resolves.toMatchObject({
+    counts: { started: 1, succeeded: 1, skipped: 0, failed: 0 }
+  });
 
   expect(beforeSpy).toHaveBeenCalledTimes(1);
   expect(__callOrder).toEqual(['before', 'assetsLoaded', 'screenshot']);
@@ -341,7 +469,9 @@ test('element load timeout with skip exits before hooks', async () => {
 
   await expect(
     launchScreenshotsRunner({ scenarioData, baseURL, devices, loadTimeoutMs: 5, loadTimeoutAction: 'skip' }, { playwrightChromium: chromiumTimeoutMock })
-  ).resolves.toBeUndefined();
+  ).resolves.toMatchObject({
+    counts: { started: 1, succeeded: 0, skipped: 1, failed: 0 }
+  });
 
   expect(beforeSpy).not.toHaveBeenCalled();
   expect(__callOrder).toEqual([]);
@@ -380,7 +510,9 @@ test('element load timeout with continue still runs hooks and screenshot', async
 
   await expect(
     launchScreenshotsRunner({ scenarioData, baseURL, devices, loadTimeoutMs: 5, loadTimeoutAction: 'continue' }, { playwrightChromium: chromiumTimeoutMock })
-  ).resolves.toBeUndefined();
+  ).resolves.toMatchObject({
+    counts: { started: 1, succeeded: 1, skipped: 0, failed: 0 }
+  });
 
   expect(beforeSpy).toHaveBeenCalledTimes(1);
   expect(cleanupSpy).toHaveBeenCalledTimes(1);
@@ -475,7 +607,9 @@ test('function load timeout honors skip', async () => {
 
   await expect(
     launchScreenshotsRunner({ scenarioData, baseURL, devices, loadTimeoutMs: 5, loadTimeoutAction: 'skip' }, { playwrightChromium: chromiumTimeoutMock })
-  ).resolves.toBeUndefined();
+  ).resolves.toMatchObject({
+    counts: { started: 1, succeeded: 0, skipped: 1, failed: 0 }
+  });
 
   expect(beforeSpy).not.toHaveBeenCalled();
   expect(__callOrder).toEqual([]);
@@ -510,7 +644,9 @@ test('function load timeout honors continue', async () => {
 
   await expect(
     launchScreenshotsRunner({ scenarioData, baseURL, devices, loadTimeoutMs: 5, loadTimeoutAction: 'continue' }, { playwrightChromium: chromiumTimeoutMock })
-  ).resolves.toBeUndefined();
+  ).resolves.toMatchObject({
+    counts: { started: 1, succeeded: 1, skipped: 0, failed: 0 }
+  });
 
   expect(beforeSpy).toHaveBeenCalledTimes(1);
   expect(cleanupSpy).toHaveBeenCalledTimes(1);

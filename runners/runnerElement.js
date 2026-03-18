@@ -1,4 +1,4 @@
-import { buildScreenshotPath, ensureAssetsLoaded, waitForPageLoad } from './utils.js';
+import { ensureAssetsLoaded, waitForPageLoad } from './utils.js';
 import chalk from 'chalk';
 
 const isAssetsTimeout = (err) => {
@@ -9,16 +9,23 @@ const isAssetsTimeout = (err) => {
 };
 
 // -------------------------
-const logShot = (device, shotNum, name) =>
-  console.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(name));
+const logShot = (logger, device, shotNum, name) =>
+  logger.log(chalk.green.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(name));
 
 const waitTwoFrames = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 
-export default async function runElementScenario({ page, baseURL, scn, device, filter, shotNum, outputDir, loadTimeoutMs, loadTimeoutAction, debugLog = () => {} }) {
+export default async function runElementScenario({ page, baseURL, scn, device, filter, shotNum, outputDir, outputPathBuilder, loadTimeoutMs, loadTimeoutAction, debugLog = () => {}, logger = console }) {
   shotNum++;
   const onTimeout = loadTimeoutAction === 'skip' ? 'skip' : 'continue';
-  const filename = buildScreenshotPath(outputDir, device, shotNum, scn.name);
-  if (filter && !filename.includes(filter)) return shotNum;
+  const filename = outputPathBuilder({
+    outputDir,
+    device,
+    shotNum,
+    scenarioName: scn.name,
+    scenario: scn,
+    type: scn.type || 'element',
+  });
+  if (filter && !filename.includes(filter)) return { shotNum, status: 'skipped', filename, reason: 'filter' };
 
   debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> goto', baseURL + scn.route);
   await page.goto(baseURL + scn.route);
@@ -26,8 +33,8 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
   const loadResult = await waitForPageLoad(page, { loadTimeoutMs });
   debugLog(`[${device}]`, '#', shotNum, '-', scn.name, loadResult.timedOut ? 'load timed out' : 'load complete');
   if (loadResult.timedOut) {
-    console.log(chalk.yellow.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(`load timeout -> ${onTimeout}`), chalk.yellow(scn.name));
-    if (onTimeout === 'skip') return shotNum;
+    logger.log(chalk.yellow.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(`load timeout -> ${onTimeout}`), chalk.yellow(scn.name));
+    if (onTimeout === 'skip') return { shotNum, status: 'skipped', filename, reason: 'load-timeout' };
   }
 
   const target = page.locator(scn.selector);
@@ -35,7 +42,7 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
   if (scn.before) {
     try {
       debugLog(`[${device}]`, '#', shotNum, '-', scn.name, "-> before() start");
-      if (await scn.before(page, target, device) === false) return shotNum;
+      if (await scn.before(page, target, device) === false) return { shotNum, status: 'skipped', filename, reason: 'before-returned-false' };
       debugLog(`[${device}]`, '#', shotNum, '-', scn.name, "-> before() done");
     }
     catch (err) { throw new Error(`[element type] 'before' threw: ${err}`); }
@@ -46,13 +53,13 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
     await ensureAssetsLoaded(page, { waitForLoad: !loadResult.timedOut, loadTimeoutMs });
   } catch (err) {
     if (isAssetsTimeout(err)) {
-      console.log(chalk.yellow.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(`assets timeout -> ${onTimeout}`), chalk.yellow(scn.name));
-      if (onTimeout === 'skip') return shotNum;
+      logger.log(chalk.yellow.bold(`[${device}]`), chalk.cyan(`#${shotNum}`), chalk.white('-'), chalk.yellow(`assets timeout -> ${onTimeout}`), chalk.yellow(scn.name));
+      if (onTimeout === 'skip') return { shotNum, status: 'skipped', filename, reason: 'assets-timeout' };
     } else {
       throw err;
     }
   }
-  logShot(device, shotNum, scn.name);
+  logShot(logger, device, shotNum, scn.name);
 
   // --------- FULL element branch ---------
   if (scn.full) {
@@ -182,7 +189,7 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
         delete html.dataset.ss_overflow;
         delete body.dataset.ss_overflow;
       });
-      return shotNum;
+      return { shotNum, status: 'succeeded', filename };
     }
     if (scn.cleanup) {
       debugLog(`[${device}]`, '#', shotNum, '-', scn.name, "-> cleanup() start");
@@ -201,5 +208,5 @@ export default async function runElementScenario({ page, baseURL, scn, device, f
     debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> screenshot to', filename);
     await target.screenshot({ path: filename, animations: 'disabled' });
   }
-  return shotNum;
+  return { shotNum, status: 'succeeded', filename };
 }

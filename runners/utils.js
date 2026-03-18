@@ -62,3 +62,7 @@ export async function ensureOutputDirectory(outputDir) {
 export function buildScreenshotPath(outputDir, device, shotNum, scenarioName) {
   return path.join(outputDir, `${device}-${String(shotNum).padStart(3, '0')}-${scenarioName}.png`);
 }
+
+export function defaultOutputPathBuilder({ outputDir, device, shotNum, scenarioName }) {
+  return buildScreenshotPath(outputDir, device, shotNum, scenarioName);
+}

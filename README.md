@@ -63,6 +63,10 @@ import launchScreenshotsRunner from 'screenshot-helper';
 
 const baseURL = 'http://localhost:8888';
 const outputDir = 'screenshots'; // optional
+const onEvent = (event) => {
+  // optional structured event hook for app integration
+  console.log(event);
+};
 const devices = {
   desktop: { viewport: { width: 1280, height: 1080 }, deviceScaleFactor: 2 },
   mobile: { viewport: { width: 375, height: 812 }, deviceScaleFactor: 2 }
@@ -116,7 +120,20 @@ const httpCredentials = {
   password: 'yourPassword',
 };
 
-launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, outputDir, httpCredentials, loadTimeoutMs, loadTimeoutAction, debug });
+const summary = await launchScreenshotsRunner({
+  scenarioData,
+  baseURL,
+  devices,
+  filter,
+  outputDir,
+  onEvent,
+  httpCredentials,
+  loadTimeoutMs,
+  loadTimeoutAction,
+  debug
+});
+
+console.log(summary);
 ```
 
 ---
@@ -137,6 +154,12 @@ launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, outputDir, htt
   An async function run just before the screenshot (after setup), ideal to remove overlays/ads, etc.
 - **outputDir**: string
   Optional output directory for generated screenshots. Defaults to `screenshots`.
+- **outputPathBuilder**: `({ outputDir, device, shotNum, scenarioName, scenario, type }) => string`
+  Optional filename/path builder. Defaults to the standard `outputDir/device-###-name.png` convention.
+- **onEvent**: `(event) => void`
+  Optional structured event hook. Receives lifecycle events such as `scenario-started`, `scenario-skipped`, `scenario-succeeded`, and `scenario-failed`.
+- **logger**: object
+  Optional logger override with `log(...args)` and `error(...args)` methods.
 
 ---
 
@@ -184,6 +207,24 @@ Will only run scenarios whose `name` includes "homepage".
 
 ### Debug logging
 - Pass `debug: true` to `launchScreenshotsRunner` to print step-by-step progress (navigation, load waits, hooks, and screenshot points) for each scenario/device. Useful when runs hang or stall.
+
+### Return value
+- `launchScreenshotsRunner(...)` now returns a summary object with aggregate counts and per-device scenario outcomes.
+
+### Structured events
+Example `onEvent` payload:
+
+```js
+{
+  type: 'scenario-succeeded',
+  device: 'desktop',
+  scenarioName: 'homepage',
+  scenarioType: 'page',
+  status: 'succeeded',
+  reason: null,
+  filename: 'screenshots/desktop-001-homepage.png'
+}
+```
 
 ---
 

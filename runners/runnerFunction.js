@@ -8,7 +8,7 @@ const isAssetsTimeout = (err) => {
   return /assets load timeout/i.test(msg) || /TimeoutError/i.test(msg);
 };
 
-export default async function runFunctionScenario({ page, baseURL, scn, device, filter, loadTimeoutMs, loadTimeoutAction, debugLog = () => {} }) {
+export default async function runFunctionScenario({ page, baseURL, scn, device, filter, loadTimeoutMs, loadTimeoutAction, debugLog = () => {}, logger = console }) {
   const scenarioName = scn.name;
 
   let beforeResult = true;
@@ -19,8 +19,8 @@ export default async function runFunctionScenario({ page, baseURL, scn, device, 
   const loadResult = await waitForPageLoad(page, { loadTimeoutMs });
   debugLog(`[${device}]`, '<function>', '-', scenarioName, loadResult.timedOut ? 'load timed out' : 'load complete');
   if (loadResult.timedOut) {
-    console.log(chalk.yellow.bold(`[${device}]`), chalk.magenta('<function>'), chalk.white('-'), chalk.yellow(`load timeout -> ${onTimeout}`), chalk.yellow(scenarioName));
-    if (onTimeout === 'skip') return;
+    logger.log(chalk.yellow.bold(`[${device}]`), chalk.magenta('<function>'), chalk.white('-'), chalk.yellow(`load timeout -> ${onTimeout}`), chalk.yellow(scenarioName));
+    if (onTimeout === 'skip') return { status: 'skipped', reason: 'load-timeout', filename: null };
   }
   if (scn.before) {
     try {
@@ -32,15 +32,15 @@ export default async function runFunctionScenario({ page, baseURL, scn, device, 
       throw new Error(`[function type] 'before' threw: ${err}`);
     }
   }
-  if (beforeResult === false) return;
-  console.log(chalk.green.bold(`[${device}]`), chalk.magenta('<function>'), chalk.white('-', ''), chalk.yellow(scenarioName));
+  if (beforeResult === false) return { status: 'skipped', reason: 'before-returned-false', filename: null };
+  logger.log(chalk.green.bold(`[${device}]`), chalk.magenta('<function>'), chalk.white('-', ''), chalk.yellow(scenarioName));
   debugLog(`[${device}]`, '<function>', '-', scenarioName, '-> ensureAssetsLoaded');
   try {
     await ensureAssetsLoaded(page, { waitForLoad: !loadResult.timedOut, loadTimeoutMs });
   } catch (err) {
     if (isAssetsTimeout(err)) {
-      console.log(chalk.yellow.bold(`[${device}]`), chalk.magenta('<function>'), chalk.white('-'), chalk.yellow(`assets timeout -> ${onTimeout}`), chalk.yellow(scenarioName));
-      if (onTimeout === 'skip') return;
+      logger.log(chalk.yellow.bold(`[${device}]`), chalk.magenta('<function>'), chalk.white('-'), chalk.yellow(`assets timeout -> ${onTimeout}`), chalk.yellow(scenarioName));
+      if (onTimeout === 'skip') return { status: 'skipped', reason: 'assets-timeout', filename: null };
     } else {
       throw err;
     }
@@ -54,4 +54,6 @@ export default async function runFunctionScenario({ page, baseURL, scn, device, 
       throw new Error(`[function type] 'cleanup' threw: ${err}`);
     }
   }
+
+  return { status: 'succeeded', filename: null };
 }
