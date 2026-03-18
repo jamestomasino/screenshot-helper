@@ -1,4 +1,4 @@
-import { ensureAssetsLoaded, scroll, waitForPageLoad } from './utils.js';
+import { buildScreenshotPath, ensureAssetsLoaded, scroll, waitForPageLoad } from './utils.js';
 import chalk from 'chalk';
 
 const isAssetsTimeout = (err) => {
@@ -8,12 +8,12 @@ const isAssetsTimeout = (err) => {
   return /assets load timeout/i.test(msg) || /TimeoutError/i.test(msg);
 };
 
-export default async function runPageScenario({ page, baseURL, scn, device, filter, shotNum, loadTimeoutMs, loadTimeoutAction, debugLog = () => {} }) {
+export default async function runPageScenario({ page, baseURL, scn, device, filter, shotNum, outputDir, loadTimeoutMs, loadTimeoutAction, debugLog = () => {} }) {
   let filename;
   let beforeResult = true;
   const onTimeout = loadTimeoutAction === 'skip' ? 'skip' : 'continue';
   shotNum++;
-  filename = `screenshots/${device}-${String(shotNum).padStart(3, '0')}-${scn.name}.png`;
+  filename = buildScreenshotPath(outputDir, device, shotNum, scn.name);
   if (filter && !filename.includes(filter)) return shotNum;
   debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> goto', baseURL + scn.route);
   await page.goto(baseURL + scn.route);

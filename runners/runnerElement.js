@@ -1,4 +1,4 @@
-import { ensureAssetsLoaded, waitForPageLoad } from './utils.js';
+import { buildScreenshotPath, ensureAssetsLoaded, waitForPageLoad } from './utils.js';
 import chalk from 'chalk';
 
 const isAssetsTimeout = (err) => {
@@ -14,10 +14,10 @@ const logShot = (device, shotNum, name) =>
 
 const waitTwoFrames = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 
-export default async function runElementScenario({ page, baseURL, scn, device, filter, shotNum, loadTimeoutMs, loadTimeoutAction, debugLog = () => {} }) {
+export default async function runElementScenario({ page, baseURL, scn, device, filter, shotNum, outputDir, loadTimeoutMs, loadTimeoutAction, debugLog = () => {} }) {
   shotNum++;
   const onTimeout = loadTimeoutAction === 'skip' ? 'skip' : 'continue';
-  const filename = `screenshots/${device}-${String(shotNum).padStart(3, '0')}-${scn.name}.png`;
+  const filename = buildScreenshotPath(outputDir, device, shotNum, scn.name);
   if (filter && !filename.includes(filter)) return shotNum;
 
   debugLog(`[${device}]`, '#', shotNum, '-', scn.name, '-> goto', baseURL + scn.route);

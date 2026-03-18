@@ -62,6 +62,7 @@ Define your scenarios and call the runner. Each scenario can have:
 import launchScreenshotsRunner from 'screenshot-helper';
 
 const baseURL = 'http://localhost:8888';
+const outputDir = 'screenshots'; // optional
 const devices = {
   desktop: { viewport: { width: 1280, height: 1080 }, deviceScaleFactor: 2 },
   mobile: { viewport: { width: 375, height: 812 }, deviceScaleFactor: 2 }
@@ -115,7 +116,7 @@ const httpCredentials = {
   password: 'yourPassword',
 };
 
-launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, httpCredentials, loadTimeoutMs, loadTimeoutAction, debug });
+launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, outputDir, httpCredentials, loadTimeoutMs, loadTimeoutAction, debug });
 ```
 
 ---
@@ -134,6 +135,8 @@ launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, httpCredential
   An async function run prior to the screenshot, for setup (e.g., open menus, wait for content)
 - **cleanup**: `(page) => Promise`  
   An async function run just before the screenshot (after setup), ideal to remove overlays/ads, etc.
+- **outputDir**: string
+  Optional output directory for generated screenshots. Defaults to `screenshots`.
 
 ---
 

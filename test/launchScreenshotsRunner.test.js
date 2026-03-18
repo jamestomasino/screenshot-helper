@@ -38,6 +38,82 @@ test('launchScreenshotsRunner works with minimal scenario config (mocked chromiu
   ).resolves.toBeUndefined();
 });
 
+test('launchScreenshotsRunner respects custom outputDir for page screenshots', async () => {
+  let screenshotPath;
+  const chromiumWithCapture = {
+    launch: async () => ({
+      newContext: async () => ({
+        newPage: async () => ({
+          waitForLoadState: async () => {},
+          evaluate: async () => {},
+          locator: () => ({ screenshot: async () => {} }),
+          goto: async () => {},
+          screenshot: async ({ path }) => {
+            screenshotPath = path;
+          },
+          viewportSize: () => ({ width: 800, height: 600 }),
+          setViewportSize: async () => {},
+        }),
+        close: async () => {},
+      }),
+      close: async () => {},
+    }),
+  };
+
+  const scenarioData = [{ route: '/test', name: 'home' }];
+  const devices = { desktop: {} };
+  const baseURL = 'http://localhost:3000';
+  const { launchScreenshotsRunner } = await import('../index.js');
+
+  await launchScreenshotsRunner(
+    { scenarioData, baseURL, devices, outputDir: 'custom-output' },
+    { playwrightChromium: chromiumWithCapture }
+  );
+
+  expect(screenshotPath).toContain('custom-output');
+  expect(screenshotPath).toContain('desktop-001-home.png');
+});
+
+test('launchScreenshotsRunner respects custom outputDir for element screenshots', async () => {
+  let screenshotPath;
+  const chromiumWithCapture = {
+    launch: async () => ({
+      newContext: async () => ({
+        newPage: async () => ({
+          waitForLoadState: async () => {},
+          evaluate: async () => {},
+          locator: () => ({
+            screenshot: async ({ path }) => {
+              screenshotPath = path;
+            },
+            boundingBox: async () => ({ width: 100, height: 200 }),
+            scrollIntoViewIfNeeded: async () => {},
+            evaluate: async () => ({ overX: false, overY: false }),
+          }),
+          goto: async () => {},
+          viewportSize: () => ({ width: 800, height: 600 }),
+          setViewportSize: async () => {},
+        }),
+        close: async () => {},
+      }),
+      close: async () => {},
+    }),
+  };
+
+  const scenarioData = [{ type: 'element', route: '/test', name: 'panel', selector: '#panel' }];
+  const devices = { mobile: {} };
+  const baseURL = 'http://localhost:3000';
+  const { launchScreenshotsRunner } = await import('../index.js');
+
+  await launchScreenshotsRunner(
+    { scenarioData, baseURL, devices, outputDir: 'another-output' },
+    { playwrightChromium: chromiumWithCapture }
+  );
+
+  expect(screenshotPath).toContain('another-output');
+  expect(screenshotPath).toContain('mobile-001-panel.png');
+});
+
 test('launchScreenshotsRunner catches and logs scenario errors (mocked chromium)', async () => {
   const { launchScreenshotsRunner } = await import('../index.js');
   // Mock locator to throw in screenshot (simulates Playwright strict mode error)
@@ -88,19 +164,24 @@ test('launchScreenshotsRunner catches and logs scenario errors (mocked chromium)
 const __callOrder = [];
 const __loadResult = { timedOut: false };
 const __assetTimeout = { throwTimeout: false };
-vi.mock('../runners/utils.js', () => ({
-  ensureAssetsLoaded: async () => {
-    if (__assetTimeout.throwTimeout) {
-      __callOrder.push('assetsTimeout');
-      const err = new Error('TimeoutError: assets load timeout');
-      err.name = 'Error';
-      throw err;
-    }
-    __callOrder.push('assetsLoaded');
-  },
-  scroll: async () => { __callOrder.push('scroll'); },
-  waitForPageLoad: async () => __loadResult
-}), { virtual: false });
+vi.mock('../runners/utils.js', async (importOriginal) => {
+  const actual = await importOriginal();
+
+  return {
+    ...actual,
+    ensureAssetsLoaded: async () => {
+      if (__assetTimeout.throwTimeout) {
+        __callOrder.push('assetsTimeout');
+        const err = new Error('TimeoutError: assets load timeout');
+        err.name = 'Error';
+        throw err;
+      }
+      __callOrder.push('assetsLoaded');
+    },
+    scroll: async () => { __callOrder.push('scroll'); },
+    waitForPageLoad: async () => __loadResult
+  };
+}, { virtual: false });
 
 beforeEach(() => {
   __callOrder.length = 0;

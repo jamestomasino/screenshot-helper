@@ -1,10 +1,11 @@
 import { chromium as chromiumDefault } from 'playwright';
 import chalk from 'chalk';
+import { ensureOutputDirectory } from './runners/utils.js';
 import runFunctionScenario from './runners/runnerFunction.js';
 import runElementScenario from './runners/runnerElement.js';
 import runPageScenario from './runners/runnerPage.js';
 
-function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, filter, loadTimeoutMs, loadTimeoutAction, debug }) {
+function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, filter, outputDir, loadTimeoutMs, loadTimeoutAction, debug }) {
   return async function () {
     const context = await browser.newContext(contextOptions);
     const page = await context.newPage();
@@ -19,10 +20,10 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
           await runFunctionScenario({ page, baseURL, scn, device, filter, loadTimeoutMs, loadTimeoutAction, debugLog });
           break;
         case 'element':
-          shotNum = await runElementScenario({ page, baseURL, scn, device, filter, shotNum, loadTimeoutMs, loadTimeoutAction, debugLog });
+          shotNum = await runElementScenario({ page, baseURL, scn, device, filter, shotNum, outputDir, loadTimeoutMs, loadTimeoutAction, debugLog });
           break;
         default:
-          shotNum = await runPageScenario({ page, baseURL, scn, device, filter, shotNum, loadTimeoutMs, loadTimeoutAction, debugLog });
+          shotNum = await runPageScenario({ page, baseURL, scn, device, filter, shotNum, outputDir, loadTimeoutMs, loadTimeoutAction, debugLog });
           break;
       }
     }
@@ -47,14 +48,15 @@ function makeRunner({ browser, baseURL, scenarioData, device, contextOptions, fi
   };
 }
 
-export async function launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, httpCredentials, loadTimeoutMs, loadTimeoutAction, debug }, { playwrightChromium } = {}) {
+export async function launchScreenshotsRunner({ scenarioData, baseURL, devices, filter, outputDir = 'screenshots', httpCredentials, loadTimeoutMs, loadTimeoutAction, debug }, { playwrightChromium } = {}) {
   const chromium = playwrightChromium || chromiumDefault;
+  await ensureOutputDirectory(outputDir);
   const browser = await chromium.launch();
   try {
     await Promise.all(
       Object.entries(devices).map(([device, contextOptionsRaw]) => {
         const contextOptions = httpCredentials ? { ...contextOptionsRaw, httpCredentials } : contextOptionsRaw;
-        return makeRunner({ browser, baseURL, scenarioData, device, contextOptions, filter, loadTimeoutMs, loadTimeoutAction, debug })();
+        return makeRunner({ browser, baseURL, scenarioData, device, contextOptions, filter, outputDir, loadTimeoutMs, loadTimeoutAction, debug })();
       })
     );
   } finally {

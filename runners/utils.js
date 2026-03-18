@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
 export async function waitForPageLoad(page, { loadTimeoutMs } = {}) {
   try {
     const opts = loadTimeoutMs ? { timeout: loadTimeoutMs } : undefined;
@@ -50,4 +53,12 @@ export async function scroll(page) {
       }, 100);
     });
   });
+}
+
+export async function ensureOutputDirectory(outputDir) {
+  await fs.mkdir(outputDir, { recursive: true });
+}
+
+export function buildScreenshotPath(outputDir, device, shotNum, scenarioName) {
+  return path.join(outputDir, `${device}-${String(shotNum).padStart(3, '0')}-${scenarioName}.png`);
 }
