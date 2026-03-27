@@ -59,10 +59,11 @@ export async function ensureOutputDirectory(outputDir) {
   await fs.mkdir(outputDir, { recursive: true });
 }
 
-export function buildScreenshotPath(outputDir, device, shotNum, scenarioName) {
-  return path.join(outputDir, `${device}-${String(shotNum).padStart(3, '0')}-${scenarioName}.png`);
+export function buildScreenshotPath(outputDir, device, shotNum, scenarioName, shotLabel) {
+  const label = shotLabel || String(shotNum).padStart(3, '0');
+  return path.join(outputDir, `${device}-${label}-${scenarioName}.png`);
 }
 
-export function defaultOutputPathBuilder({ outputDir, device, shotNum, scenarioName }) {
-  return buildScreenshotPath(outputDir, device, shotNum, scenarioName);
+export function defaultOutputPathBuilder({ outputDir, device, shotNum, scenarioName, shotLabel }) {
+  return buildScreenshotPath(outputDir, device, shotNum, scenarioName, shotLabel);
 }

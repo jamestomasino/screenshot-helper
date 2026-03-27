@@ -53,6 +53,7 @@ Define your scenarios and call the runner. Each scenario can have:
 
 - `name`: Unique name for the output file
 - `route`: URL path (relative to your baseURL)
+- `group`: (optional) explicit grouping key for deterministic grouped numbering
 - `full`: Capture the entire page (`true`) or just the viewport (`false`)
 - `selector`: (optional) CSS selector for element-only screenshots  
 - `before`: (optional) Async function for custom setup (e.g., open a modal, wait for element)
@@ -144,6 +145,8 @@ console.log(summary);
   Used for the output filename and reporting.
 - **route**: string (required)  
   Path relative to `baseURL`
+- **group**: string | number
+  Optional explicit group key for filename grouping. If omitted, grouping is inferred from the route URL without query/hash. If route is missing, the scenario falls back to a `misc` group.
 - **full**: boolean  
   Capture the entire page (`true`) or just viewport/selector area (`false`)
 - **selector**: string  
@@ -154,8 +157,8 @@ console.log(summary);
   An async function run just before the screenshot (after setup), ideal to remove overlays/ads, etc.
 - **outputDir**: string
   Optional output directory for generated screenshots. Defaults to `screenshots`.
-- **outputPathBuilder**: `({ outputDir, device, shotNum, scenarioName, scenario, type }) => string`
-  Optional filename/path builder. Defaults to the standard `outputDir/device-###-name.png` convention.
+- **outputPathBuilder**: `({ outputDir, device, shotNum, shotLabel, groupId, groupKey, shotInGroup, scenarioName, scenario, type }) => string`
+  Optional filename/path builder. Defaults to grouped deterministic naming: `outputDir/device-GG.SSS-name.png` (for example `desktop-01.002-home.png`).
 - **onEvent**: `(event) => void`
   Optional structured event hook. Receives lifecycle events such as `scenario-started`, `scenario-skipped`, `scenario-succeeded`, and `scenario-failed`.
 - **logger**: object
@@ -222,7 +225,7 @@ Example `onEvent` payload:
   scenarioType: 'page',
   status: 'succeeded',
   reason: null,
-  filename: 'screenshots/desktop-001-homepage.png'
+  filename: 'screenshots/desktop-01.001-homepage.png'
 }
 ```
 

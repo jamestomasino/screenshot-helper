@@ -73,7 +73,7 @@ test('launchScreenshotsRunner respects custom outputDir for page screenshots', a
   );
 
   expect(screenshotPath).toContain('custom-output');
-  expect(screenshotPath).toContain('desktop-001-home.png');
+  expect(screenshotPath).toContain('desktop-01.001-home.png');
 });
 
 test('launchScreenshotsRunner respects custom outputDir for element screenshots', async () => {
@@ -113,7 +113,7 @@ test('launchScreenshotsRunner respects custom outputDir for element screenshots'
   );
 
   expect(screenshotPath).toContain('another-output');
-  expect(screenshotPath).toContain('mobile-001-panel.png');
+  expect(screenshotPath).toContain('mobile-01.001-panel.png');
 });
 
 test('filter matching still works with custom outputDir', async () => {
@@ -230,10 +230,57 @@ test('launchScreenshotsRunner emits structured events and supports custom logger
   );
 
   expect(events.map((event) => event.type)).toEqual(['scenario-started', 'scenario-succeeded']);
-  expect(events[1].filename).toContain('desktop-001-home.png');
+  expect(events[1].filename).toContain('desktop-01.001-home.png');
   expect(summary.devices.desktop.counts.succeeded).toBe(1);
   expect(logger.log).toHaveBeenCalled();
   expect(logger.error).not.toHaveBeenCalled();
+});
+
+test('default naming uses deterministic grouped labels from url, explicit group, and misc fallback', async () => {
+  const screenshotPaths = [];
+  const chromiumWithCapture = {
+    launch: async () => ({
+      newContext: async () => ({
+        newPage: async () => ({
+          waitForLoadState: async () => {},
+          evaluate: async () => {},
+          goto: async () => {},
+          screenshot: async ({ path }) => {
+            screenshotPaths.push(path);
+          },
+          locator: () => ({ screenshot: async () => {} }),
+          viewportSize: () => ({ width: 800, height: 600 }),
+          setViewportSize: async () => {},
+        }),
+        close: async () => {},
+      }),
+      close: async () => {},
+    }),
+  };
+
+  const scenarioData = [
+    { route: '/home?from=top', name: 'home-1' },
+    { route: '/checkout', name: 'checkout-1' },
+    { route: '/home?from=footer', name: 'home-2' },
+    { route: '/promo?campaign=spring', name: 'promo-1', group: 'marketing' },
+    { name: 'misc-1' },
+  ];
+  const devices = { desktop: {} };
+  const baseURL = 'http://localhost:3000';
+  const { launchScreenshotsRunner } = await import('../index.js');
+
+  await launchScreenshotsRunner(
+    { scenarioData, baseURL, devices, outputDir: 'custom-output' },
+    { playwrightChromium: chromiumWithCapture }
+  );
+
+  expect(screenshotPaths).toEqual([
+    expect.stringContaining(path.join('custom-output', 'desktop-01.001-home-1.png')),
+    expect.stringContaining(path.join('custom-output', 'desktop-02.001-checkout-1.png')),
+    expect.stringContaining(path.join('custom-output', 'desktop-01.002-home-2.png')),
+    expect.stringContaining(path.join('custom-output', 'desktop-03.001-promo-1.png')),
+    expect.stringContaining(path.join('custom-output', 'desktop-04.001-misc-1.png')),
+  ]);
 });
 
 test('launchScreenshotsRunner catches and logs scenario errors (mocked chromium)', async () => {

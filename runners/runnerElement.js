@@ -14,13 +14,17 @@ const logShot = (logger, device, shotNum, name) =>
 
 const waitTwoFrames = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 
-export default async function runElementScenario({ page, baseURL, scn, device, filter, shotNum, outputDir, outputPathBuilder, loadTimeoutMs, loadTimeoutAction, debugLog = () => {}, logger = console }) {
+export default async function runElementScenario({ page, baseURL, scn, shotPlan, device, filter, shotNum, outputDir, outputPathBuilder, loadTimeoutMs, loadTimeoutAction, debugLog = () => {}, logger = console }) {
   shotNum++;
   const onTimeout = loadTimeoutAction === 'skip' ? 'skip' : 'continue';
   const filename = outputPathBuilder({
     outputDir,
     device,
     shotNum,
+    shotLabel: shotPlan?.shotLabel,
+    groupId: shotPlan?.groupId,
+    groupKey: shotPlan?.groupKey,
+    shotInGroup: shotPlan?.shotInGroup,
     scenarioName: scn.name,
     scenario: scn,
     type: scn.type || 'element',

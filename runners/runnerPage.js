@@ -8,7 +8,7 @@ const isAssetsTimeout = (err) => {
   return /assets load timeout/i.test(msg) || /TimeoutError/i.test(msg);
 };
 
-export default async function runPageScenario({ page, baseURL, scn, device, filter, shotNum, outputDir, outputPathBuilder, loadTimeoutMs, loadTimeoutAction, debugLog = () => {}, logger = console }) {
+export default async function runPageScenario({ page, baseURL, scn, shotPlan, device, filter, shotNum, outputDir, outputPathBuilder, loadTimeoutMs, loadTimeoutAction, debugLog = () => {}, logger = console }) {
   let filename;
   let beforeResult = true;
   const onTimeout = loadTimeoutAction === 'skip' ? 'skip' : 'continue';
@@ -17,6 +17,10 @@ export default async function runPageScenario({ page, baseURL, scn, device, filt
     outputDir,
     device,
     shotNum,
+    shotLabel: shotPlan?.shotLabel,
+    groupId: shotPlan?.groupId,
+    groupKey: shotPlan?.groupKey,
+    shotInGroup: shotPlan?.shotInGroup,
     scenarioName: scn.name,
     scenario: scn,
     type: scn.type || 'page',
