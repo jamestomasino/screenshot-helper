@@ -137,6 +137,13 @@ const summary = await launchScreenshotsRunner({
 console.log(summary);
 ```
 
+By default, runner status/debug logs are written to `stderr` so you can keep `stdout` clean for JSON output.
+For example, this captures only JSON summary to a file while still showing progress logs in the terminal:
+
+```sh
+node screenshots.js > summary.json
+```
+
 ---
 
 ### Scenario Configuration

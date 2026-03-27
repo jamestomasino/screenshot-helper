@@ -7,7 +7,8 @@ import runPageScenario from './runners/runnerPage.js';
 
 function createDefaultLogger() {
   return {
-    log: (...args) => console.log(...args),
+    // Write runtime status/debug lines to stderr so stdout can be reserved for JSON output.
+    log: (...args) => console.error(...args),
     error: (...args) => console.error(...args),
   };
 }

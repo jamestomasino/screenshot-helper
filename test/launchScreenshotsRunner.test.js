@@ -306,8 +306,7 @@ test('launchScreenshotsRunner catches and logs scenario errors (mocked chromium)
     }),
   };
 
-  // Spy on console.log and console.error to inspect outputs
-  const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  // Spy on console.error to inspect default logger outputs
   const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
   const scenarioData = [
@@ -317,14 +316,13 @@ test('launchScreenshotsRunner catches and logs scenario errors (mocked chromium)
   const baseURL = 'http://localhost:3000';
   await launchScreenshotsRunner({ scenarioData, baseURL, devices }, { playwrightChromium: chromiumWithError });
 
-  // Should have called log with red ERROR
-  const loggedErrorLine = logSpy.mock.calls.find(([msg]) => typeof msg === 'string' && msg.includes('ERROR:'));
+  // Should have emitted an ERROR line via default logger
+  const loggedErrorLine = errorSpy.mock.calls.find(([msg]) => typeof msg === 'string' && msg.includes('ERROR:'));
   expect(loggedErrorLine).toBeTruthy();
   // Should have called error with our thrown error message
   const hadStack = errorSpy.mock.calls.some(([msg]) => (msg || '').toString().includes('locator error simulated'));
   expect(hadStack).toBe(true);
   // Cleanup
-  logSpy.mockRestore();
   errorSpy.mockRestore();
 });
 
@@ -568,7 +566,7 @@ test('element load timeout with continue still runs hooks and screenshot', async
 
 test('asset timeout with skip exits before cleanup/screenshot', async () => {
   __assetTimeout.throwTimeout = true;
-  const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  const logSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   const chromiumMock = {
     launch: async () => ({
       newContext: async () => ({
