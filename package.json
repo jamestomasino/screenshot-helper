@@ -1,6 +1,6 @@
 {
   "name": "screenshot-helper",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A helper for taking automated web screenshots using Playwright.",
   "main": "index.cjs",
   "module": "index.js",
