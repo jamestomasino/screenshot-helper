@@ -18,10 +18,27 @@ export async function ensureAssetsLoaded(page, { waitForLoad = true, loadTimeout
     await page.waitForLoadState('networkidle', opts);
   }
   await page.evaluate(async (timeoutMs) => {
+    const isOffscreenLazyImage = (img) => {
+      const loading = (img.getAttribute('loading') || '').toLowerCase();
+      if (loading !== 'lazy') return false;
+
+      const rect = img.getBoundingClientRect();
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+
+      return (
+        rect.bottom <= 0 ||
+        rect.right <= 0 ||
+        rect.top >= viewportHeight ||
+        rect.left >= viewportWidth
+      );
+    };
+
     const waitForAssets = async () => {
       const imgs = Array.from(document.images);
       await Promise.all(imgs.map(img => {
         if (img.complete) return;
+        if (isOffscreenLazyImage(img)) return;
         return new Promise(res => { img.onload = img.onerror = res; });
       }));
       if ('fonts' in document) await document.fonts.ready;

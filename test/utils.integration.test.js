@@ -71,6 +71,23 @@ describeFn('utils.js integration (Playwright)', () => {
     await browser.close();
   }, 10000);
 
+  it('ensureAssetsLoaded ignores hanging lazy images that are offscreen', async () => {
+    const browser = await chromium.launch();
+    const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
+    await page.setContent(
+      `<html><body style="margin:0;">
+        <div style="height:1500px;"></div>
+        <img src="${BASE_URL}/never.png" loading="lazy" width="10" height="10" />
+      </body></html>`,
+      { waitUntil: 'domcontentloaded' }
+    );
+    const t0 = Date.now();
+    await ensureAssetsLoaded(page, { waitForLoad: false, loadTimeoutMs: 300 });
+    const t1 = Date.now();
+    expect(t1 - t0).toBeLessThan(300);
+    await browser.close();
+  }, 10000);
+
   it('scroll helper scrolls to end of tall page', async () => {
     const browser = await chromium.launch();
     const page = await browser.newPage();
